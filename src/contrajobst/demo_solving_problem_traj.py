@@ -23,6 +23,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from os.path import dirname, join, abspath
+
 import numpy as np
 from numpy.linalg import norm
 import pinocchio as pin
@@ -30,82 +32,155 @@ import time
 from scipy.optimize import fmin, fmin_bfgs
 import matplotlib.pyplot as plt
 import hppfcl
+import pydiffcol
 
 from wrapper_robot import RobotWrapper
 from wrapper_meshcat import MeshcatWrapper
 from problem_traj import QuadratricProblemNLP
 from solver_newton_mt import SolverNewtonMt
 from solver_casadi import CasadiSolver
-from utils import display_last_traj, generate_reachable_target, numdiff
+from utils import display_last_traj, numdiff, get_q_iter_from_Q
 
 # ### HYPERPARMS
-T = 6
+T = 5
 WEIGHT_Q0 = 0.001
 WEIGHT_DQ = 0.001
+WEIGHT_OBS = 1e-1
 WEIGHT_TERM_POS = 4
 
-TARGET = np.array([-0.155, -0.815, 0.456])
-TARGET = "random"
+# Generate a reachable target
+TARGET = pin.SE3.Identity()
+TARGET.translation = np.array([0.6, 0.6, 0.6])
 
-INITIAL_CONFIG = np.array([0, -2.5, 2, -1.2, -1.7, 0])
-INITIAL_CONFIG = "random"
+# Generate a reachable obstacle
+OBSTACLE_translation = TARGET.translation / 2 + [0.1, 0.2, 0.4]
+rotation = np.identity(3)
+rotation[1, 1] = 0
+rotation[2, 2] = 0
+rotation[1, 2] = -1
+rotation[2, 1] = 1
+OBSTACLE_rotation = rotation
+OBSTACLE = TARGET.copy()
+OBSTACLE.translation = OBSTACLE_translation
+OBSTACLE.rotation = OBSTACLE_rotation
 
-# SEED = abs(int(np.sin(time.time() % 6.28) * 1000))
-SEED = 573  # TRS does not perfectly converge, slight difference with IpOpt
-# SEED = 1  # Perfect convergence to solution, immediate convergence of IpOpt (with WS)
-print(f"SEED = {SEED}")
+
+# Initial configuration of the robot
+INITIAL_CONFIG = np.array([0, -2.5, 2, -1.2, -1.7, 0, 0])
+
+# Max iterations of the solver
+MAX_ITER = 20
 
 WITH_DISPLAY = True
-WITH_PLOT = True
-WITH_NUMDIFF_SOLVE = True
+WITH_PLOT = False
+WITH_NUMDIFF_SOLVE = False
 WARMSTART_IPOPT_WITH_TRS = False
 WITH_CASADI = False
 
 
+###* LOADING THE ROBOT
+
+pinocchio_model_dir = join(dirname(dirname(str(abspath(__file__)))), "models")
+
+model_path = join(pinocchio_model_dir, "franka_description/robots")
+mesh_dir = pinocchio_model_dir
+urdf_filename = "franka2.urdf"
+urdf_model_path = join(join(model_path, "panda"), urdf_filename)
+
+
 ### HELPERS (Finite difference comutation of the gradient and the hessian)
-if WITH_NUMDIFF_SOLVE:
+def grad_numdiff(Q: np.ndarray):
+    return numdiff(QP.cost, Q)
 
-    def grad_numdiff(Q: np.ndarray):
-        return numdiff(QP.cost, Q)
 
-    def hess_numdiff(Q: np.ndarray):
-        return numdiff(grad_numdiff, Q)
+def hess_numdiff(Q: np.ndarray):
+    return numdiff(grad_numdiff, Q)
+
+
+def obstacle_cost_function(Q: np.ndarray, eps=1e-4):
+    # Going through all the configurations of the robot
+    cost = 0
+    for t in range(T):
+        # Getting each configuration specifically
+        q_t = get_q_iter_from_Q(Q, t, rmodel.nq)
+
+        # Results requests from pydiffcol
+        req = pydiffcol.DistanceRequest()
+        res = pydiffcol.DistanceResult()
+
+        # Updating the pinocchio models
+        pin.framesForwardKinematics(rmodel, rdata, q_t)
+        pin.updateGeometryPlacements(rmodel, rdata, gmodel, gdata)
+
+        # Getting the shape and the position of the end effector
+        EndeffID = rmodel.getFrameId("endeff")
+        EndeffID_geom = gmodel.getGeometryId("endeff_geom")
+        endeff_pos = rdata.oMf[EndeffID]
+        endeff_shape = gmodel.geometryObjects[EndeffID_geom].geometry
+
+        # Computing the nearest neighbors of the end effector and the obstacle
+        dist_endeff_obs = pydiffcol.distance(
+            endeff_shape, endeff_pos, OBSTACLE_SHAPE, OBSTACLE, req, res
+        )
+
+        # Computing the positions of the joints at each configuration
+        # for oMg, geometry_objects in zip(gdata.oMg, gmodel.geometryObjects):
+        #     print(geometry_objects)
+        #     dist_endeff_target = pydiffcol.distance(
+        #         geometry_objects.geometry, oMg, TARGET_SHAPE, TARGET, req, res
+        #     )
+        print(f"iteration :{t}, \n distance = {dist_endeff_obs}")
+        if dist_endeff_obs < eps:
+            print("contact")
+            cost += (dist_endeff_obs - eps) ** 2
+
+    return cost
 
 
 if __name__ == "__main__":
-    pin.seed(SEED)
-
     # Creation of the robot
-    robot_wrapper = RobotWrapper()
-    robot, rmodel, gmodel = robot_wrapper()
+
+    robot_wrapper = RobotWrapper(
+        name_robot="franka",
+        belong_to_example_robot_data=False,
+        urdf_model_path=urdf_model_path,
+        mesh_dir=mesh_dir,
+    )
+    rmodel, cmodel, vmodel = robot_wrapper()
     rdata = rmodel.createData()
-    gdata = gmodel.createData()
+    cdata = cmodel.createData()
 
-    # Initial configuration and target
-    if INITIAL_CONFIG == "random":
-        INITIAL_CONFIG = pin.randomConfiguration(rmodel)
-    if TARGET == "random":
-        TARGET = generate_reachable_target(rmodel, rdata)
-
+    # Creating the HPPFCL Shapes for the obstacles and the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
-
+    # OBSTACLE_SHAPE = hppfcl.Box(5e-1, 5e-1, 5e-2)
+    OBSTACLE_SHAPE = hppfcl.Sphere(1e-1)
     # Creating the QP
     QP = QuadratricProblemNLP(
-        robot,
         rmodel,
-        gmodel,
+        cmodel,
         q0=INITIAL_CONFIG,
         target=TARGET,
         target_shape=TARGET_SHAPE,
+        obstacle=OBSTACLE,
+        obstacle_shape=OBSTACLE_SHAPE,
         T=T,
         weight_q0=WEIGHT_Q0,
         weight_dq=WEIGHT_DQ,
+        weight_obs=WEIGHT_OBS,
         weight_term_pos=WEIGHT_TERM_POS,
     )
 
     # Generating the meshcat visualizer
     MeshcatVis = MeshcatWrapper()
-    vis = MeshcatVis.visualize(TARGET, robot=robot)
+    vis = MeshcatVis.visualize(
+        TARGET,
+        OBSTACLE,
+        robot_model=rmodel,
+        robot_collision_model=cmodel,
+        robot_visual_model=vmodel,
+        obstacle_type="sphere",
+        OBSTACLE_DIM=1e-1,
+    )
 
     # Displaying the initial configuration of the robot
     vis.display(INITIAL_CONFIG)
@@ -115,7 +190,12 @@ if __name__ == "__main__":
 
     # Trust region solver
     trust_region_solver = SolverNewtonMt(
-        QP.cost, QP.grad, QP.hess, max_iter=100, callback=None, verbose = True
+        QP.cost,
+        grad_numdiff,
+        hess_numdiff,
+        max_iter=MAX_ITER,
+        callback=None,
+        verbose=True,
     )
 
     trust_region_solver(Q0)
@@ -126,16 +206,16 @@ if __name__ == "__main__":
         trust_region_solver._reguk_history,
     )
     Q_trs = trust_region_solver._xval_k
-    # residuals_trs = QP.compute_residuals(Q_trs)
 
     if WITH_NUMDIFF_SOLVE:
-        # # Scipy solver
-        mini = fmin_bfgs(QP.cost, Q0, full_output=True)
-        Q_fmin = mini
-
         # Trust region solver with finite difference
         trust_region_solver_nd = SolverNewtonMt(
-            QP.cost, grad_numdiff, hess_numdiff, max_iter=100, callback=None, verbose = True
+            QP.cost,
+            grad_numdiff,
+            hess_numdiff,
+            max_iter=MAX_ITER,
+            callback=None,
+            verbose=True,
         )
         res = trust_region_solver_nd(Q0)
         list_fval_mt_nd, list_gradfkval_mt_nd, list_alphak_mt_nd, list_reguk_nd = (
@@ -145,25 +225,6 @@ if __name__ == "__main__":
             trust_region_solver_nd._reguk_history,
         )
         Q_nd = trust_region_solver_nd._xval_k
-
-    # Casadi+IpOpt solver
-    if WITH_CASADI:
-        casadiSolver = CasadiSolver(QP)
-        Q_casadi, residuals_casadi = casadiSolver.solve(
-            Q_trs if WARMSTART_IPOPT_WITH_TRS else None
-        )
-        J_casadi = casadiSolver.evalJacobian(Q_casadi)
-
-        # ### NUMDIFF unittest
-        Qr = np.random.rand((T + 1) * rmodel.nq) * 6 - 3
-        gnd = grad_numdiff(Qr)
-        Jr = casadiSolver.evalJacobian(Qr)
-        rr = casadiSolver.evalResiduals(Qr)
-        gcas = Jr.T @ rr
-        galg = QP.grad(Qr)
-        assert norm(rr - QP._residual, np.inf) < 1e-9
-        assert norm(gcas - galg, np.inf) < 1e-9
-        assert norm(gnd - galg, np.inf) < 1e-3
 
     if WITH_DISPLAY:
         print(
@@ -212,28 +273,3 @@ if __name__ == "__main__":
             " Comparison between Marc Toussaint's Newton method and finite difference method"
         )
         plt.show()
-
-    if WITH_CASADI:
-        np.set_printoptions(precision=3, linewidth=600, suppress=True)
-        print(
-            "Optimal trajectory: \n\t",
-            "\n\t ".join([repr(q) for q in np.split(Q_casadi, T + 1)]),
-        )
-        pin.framesForwardKinematics(rmodel, rdata, Q_casadi[-rmodel.nq :])
-        print(
-            "Terminal position:",
-            rdata.oMf[QP._EndeffID].translation,
-            " vs ",
-            QP._target,
-        )
-        print(f"Distance between IpOpt and TRS solvers {norm(Q_casadi-Q_trs,np.inf)} ")
-        if WITH_NUMDIFF_SOLVE:
-            print(
-                f"Distance between IpOpt and ND solvers {norm(Q_casadi-Q_nd,np.inf)} "
-            )
-            print(f"Distance between ND and TRS solvers {norm(Q_nd-Q_trs,np.inf)} ")
-
-        assert np.allclose(Q_casadi, Q_trs, atol=1e-7, rtol=1e-3)
-        if WITH_NUMDIFF_SOLVE:
-            assert np.allclose(Q_casadi, Q_nd, atol=1e-3, rtol=10)
-            assert np.allclose(Q_trs, Q_nd, atol=1e-3, rtol=10)

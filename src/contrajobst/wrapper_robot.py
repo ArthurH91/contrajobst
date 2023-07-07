@@ -34,7 +34,14 @@ import hppfcl
 
 
 class RobotWrapper:
-    def __init__(self, scale=1.0, name_robot="ur10"):
+    def __init__(
+        self,
+        scale=1.0,
+        name_robot="ur10",
+        belong_to_example_robot_data=True,
+        urdf_model_path=None,
+        mesh_dir=None,
+    ):
         """Initialize the wrapper with a scaling number of the target and the name of the robot wanted to get unwrapped.
 
         Parameters
@@ -46,8 +53,14 @@ class RobotWrapper:
         """
 
         self._scale = scale
-        self._robot = robex.load(name_robot)
-        self._rmodel = self._robot.model
+        self._belong_to_example_robot_data = belong_to_example_robot_data
+        self._name_robot = name_robot
+        if self._belong_to_example_robot_data:
+            self._robot = robex.load(name_robot)
+            self._rmodel = self._robot.model
+        else:
+            self._urdf_model_path = urdf_model_path
+            self._mesh_dir = mesh_dir
         self._color = np.array([249, 136, 126, 255]) / 255
 
     def __call__(self):
@@ -75,33 +88,78 @@ class RobotWrapper:
         # The cylinder is used to have a HPPFCL shape at the end of the robot to make contact with the target
 
         # Obtaining the frame ID of the frame tool0
-        ID_frame_tool0 = self._rmodel.getFrameId("tool0")
-        # Obtaining the frame tool0
-        frame_tool0 = self._rmodel.frames[ID_frame_tool0]
-        # Obtaining the parent joint of the frame tool0
-        parent_joint = frame_tool0.parentJoint
-        # Obtaining the placement of the frame tool0
-        Mf_endeff = frame_tool0.placement
-        # Creating the endeff frame
-        endeff_frame = pin.Frame("endeff", parent_joint, Mf_endeff, pin.BODY)
-        _ = self._rmodel.addFrame(endeff_frame, False)
+        # ID_frame_tool0 = self._rmodel.getFrameId("panda_finger_joint_1")
+        if self._name_robot == "ur10":
+            ID_frame_tool0 = self._rmodel.getFrameId("tool0")
 
-        # Creation of the geometrical model
-        self._gmodel = self._robot.visual_model
+            # Obtaining the frame tool0
+            frame_tool0 = self._rmodel.frames[ID_frame_tool0]
+            # Obtaining the parent joint of the frame tool0
+            parent_joint = frame_tool0.parentJoint
+            # Obtaining the placement of the frame tool0
+            Mf_endeff = frame_tool0.placement
 
-        # Creation of the cylinder at the end of the end effector
+            # Translating the frame to make the cylinder match with the geometry of the end effector
+            Mf_endeff.translation = np.array([0, 1e-3, 0])
+            # Creating the endeff frame
+            endeff_frame = pin.Frame("endeff", parent_joint, Mf_endeff, pin.BODY)
+            _ = self._rmodel.addFrame(endeff_frame, False)
 
-        # Setting up the raddi of the cylinder
-        endeff_radii, endeff_width = 1e-2, 1e-3
-        # Creating a HPPFCL shape
-        endeff_shape = hppfcl.Cylinder(endeff_radii, endeff_width)
-        # Creating a pin.GeometryObject for the model of the _robot
-        geom_endeff = pin.GeometryObject(
-            "endeff_geom", parent_joint, Mf_endeff, endeff_shape
-        )
-        geom_endeff.meshColor = self._color
-        # Add the geometry object to the geometrical model
-        self._gmodel.addGeometryObject(geom_endeff)
+            # Creation of the geometrical model
+            self._gmodel = self._robot.visual_model
+            self._cmodel = self._robot.collision_model
+
+            # Creation of the cylinder at the end of the end effector
+
+            # Setting up the raddi of the cylinder
+            endeff_radii, endeff_width = 5e-2, 1.5e-1
+            # Creating a HPPFCL shape
+            endeff_shape = hppfcl.Cylinder(endeff_radii, endeff_width)
+            # Creating a pin.GeometryObject for the model of the _robot
+            geom_endeff = pin.GeometryObject(
+                "endeff_geom", parent_joint, Mf_endeff, endeff_shape
+            )
+            geom_endeff.meshColor = self._color
+            # Add the geometry object to the geometrical model
+            self._gmodel.addGeometryObject(geom_endeff)
+
+        else:
+            (
+                self._rmodel,
+                self._collision_model,
+                self._visual_model,
+            ) = pin.buildModelsFromUrdf(
+                self._urdf_model_path, self._mesh_dir, pin.JointModelFreeFlyer()
+            )
+
+            q0 = pin.neutral(self._rmodel)
+
+            jointsToLock = [
+                "root_joint:",
+                "panda2_finger_joint1:",
+                "panda2_finger_joint2:",
+                "universe",
+            ]
+
+            jointsToLockIDs = [1, 9, 10]
+
+            geom_models = [self._visual_model, self._collision_model]
+            self._model_reduced, geometric_models_reduced = pin.buildReducedModel(
+                self._rmodel,
+                list_of_geom_models=geom_models,
+                list_of_joints_to_lock=jointsToLockIDs,
+                reference_configuration=q0,
+            )
+
+            self._visual_model_reduced, self._collision_model_reduced = (
+                geometric_models_reduced[0],
+                geometric_models_reduced[1],
+            )
+            return (
+                self._model_reduced,
+                self._collision_model_reduced,
+                self._visual_model_reduced,
+            )
 
         return self._robot, self._rmodel, self._gmodel
 

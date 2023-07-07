@@ -39,15 +39,17 @@ from utils import get_q_iter_from_Q, get_difference_between_q_iter, numdiff
 class QuadratricProblemNLP:
     def __init__(
         self,
-        robot,
         rmodel: pin.Model,
         gmodel: pin.GeometryModel,
         q0: np.array,
         target: np.array,
         target_shape: hppfcl.ShapeBase,
+        obstacle: np.array,
+        obstacle_shape: hppfcl.ShapeBase,
         T: int,
         weight_q0: float,
         weight_dq: float,
+        weight_obs: float,
         weight_term_pos: float,
     ):
         """Initialize the class with the models and datas of the robot.
@@ -73,7 +75,6 @@ class QuadratricProblemNLP:
         weight_term_pos : float
             Factor of penalisation of the terminal cost (p(q_T) - target)**
         """
-        self._robot = robot
         self._rmodel = rmodel
         self._gmodel = gmodel
         self._rdata = rmodel.createData()
@@ -83,18 +84,21 @@ class QuadratricProblemNLP:
         self._T = T
         self._target = target
         self._target_shape = target_shape
+        self._obstacle = obstacle
+        self._obstacle_shape = obstacle_shape
         self._weight_q0 = weight_q0
         self._weight_dq = weight_dq
+        self._weight_obs = weight_obs
         self._weight_term_pos = weight_term_pos
 
         # Storing the IDs of the frame of the end effector
 
         self._EndeffID = self._rmodel.getFrameId("endeff")
         self._EndeffID_geom = self._gmodel.getGeometryId("endeff_geom")
-        assert self._EndeffID_geom < len(self._gmodel.geometryObjects)
-        assert self._EndeffID < len(self._rmodel.frames)
+        # assert self._EndeffID_geom < len(self._gmodel.geometryObjects)
+        # assert self._EndeffID < len(self._rmodel.frames)
 
-    def cost(self, Q: np.ndarray):
+    def cost(self, Q: np.ndarray, eps_obstacle=1e-5):
         """Computes the cost of the QP.
 
         Parameters
@@ -110,7 +114,7 @@ class QuadratricProblemNLP:
 
         self._Q = Q
 
-        ### INITIAL RESIDUAL
+        ###* INITIAL RESIDUAL
         ### Computing the distance between q0 and q_init to make sure the robot starts at the right place
         self._initial_residual = (
             get_q_iter_from_Q(self._Q, 0, self._rmodel.nq) - self._q0
@@ -119,7 +123,7 @@ class QuadratricProblemNLP:
         # Penalizing the initial residual
         self._initial_residual *= self._weight_q0
 
-        ### RUNNING RESIDUAL
+        ###* RUNNING RESIDUAL
         ### Running residuals are computed by diffenciating between q_th and q_th +1
         self._principal_residual = (
             get_difference_between_q_iter(Q, 0, self._rmodel.nq) * self._weight_dq
@@ -134,7 +138,39 @@ class QuadratricProblemNLP:
                 axis=None,
             )
 
-        ### TERMINAL RESIDUAL
+        ###* OBSTACLE RESIDUAL
+
+        self._obstacle_residual = 0
+
+        for t in range(self._T):
+            # Getting each configuration specifically
+            q_t = get_q_iter_from_Q(Q, t, self._rmodel.nq)
+
+            # Results requests from pydiffcol
+            req = pydiffcol.DistanceRequest()
+            res = pydiffcol.DistanceResult()
+
+            # Updating the pinocchio models
+            pin.framesForwardKinematics(self._rmodel, self._rdata, q_t)
+            pin.updateGeometryPlacements(
+                self._rmodel, self._rdata, self._gmodel, self._gdata
+            )
+
+            # Getting the shape and the position of the end effector
+            endeff_pos = self._rdata.oMf[self._EndeffID]
+            endeff_shape = self._gmodel.geometryObjects[self._EndeffID_geom].geometry
+
+            # Computing the nearest neighbors of the end effector and the obstacle
+            dist_endeff_obs = pydiffcol.distance(
+                endeff_shape, endeff_pos, self._obstacle_shape, self._obstacle, req, res
+            )
+
+            if dist_endeff_obs < eps_obstacle:
+                self._obstacle_residual += (dist_endeff_obs - eps_obstacle) ** 2
+
+        self._obstacle_residual *= self._weight_obs
+
+        ###* TERMINAL RESIDUAL
         ### Computing the distance between the last configuration and the target
 
         # Distance request for pydiffcol
@@ -168,17 +204,28 @@ class QuadratricProblemNLP:
 
         self._terminal_residual = (self._weight_term_pos) * self._res.w
 
-        ### TOTAL RESIDUAL
+        ###* TOTAL RESIDUAL
         self._residual = np.concatenate(
-            (self._initial_residual, self._principal_residual, self._terminal_residual),
+            (
+                self._initial_residual,
+                self._principal_residual,
+                self._obstacle_residual,
+                self._terminal_residual,
+            ),
             axis=None,
         )
 
-        ### COMPUTING COSTS
+        ###* COMPUTING COSTS
         self._initial_cost = 0.5 * sum(self._initial_residual**2)
         self._principal_cost = 0.5 * sum(self._principal_residual**2)
+        self._obstacle_cost = 0.5 * self._obstacle_residual**2
         self._terminal_cost = 0.5 * sum(self._terminal_residual**2)
-        self.costval = self._initial_cost + self._terminal_cost + self._principal_cost
+        self.costval = (
+            self._initial_cost
+            + self._terminal_cost
+            + self._principal_cost
+            + self._obstacle_cost
+        )
 
         return self.costval
 
@@ -261,7 +308,7 @@ class QuadratricProblemNLP:
         ] = self._derivative_terminal_residual
 
         self.gradval = self._derivative_residual.T @ self._residual
-        
+
         gradval_numdiff = self.grad_numdiff(Q)
         # print(f"grad val : {np.linalg.norm(self.gradval)} \n grad val numdiff : {np.linalg.norm(gradval_numdiff)}")
         # assert np.linalg.norm(self.gradval - gradval_numdiff, np.inf) < 1e-4

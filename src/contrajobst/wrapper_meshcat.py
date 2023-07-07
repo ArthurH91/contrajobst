@@ -26,7 +26,18 @@ class MeshcatWrapper:
         self._grid = grid
         self._axes = axes
 
-    def visualize(self, TARGET: pin.SE3,OBSTACLE: pin.SE3,  RADII_TARGET=5e-2, OBSTACLE_DIM = [5e-1,5e-1,5e-2], robot=None):
+    def visualize(
+        self,
+        TARGET=None,
+        OBSTACLE=None,
+        RADII_TARGET=5e-2,
+        OBSTACLE_DIM=[5e-1, 5e-1, 5e-2],
+        robot=None,
+        obstacle_type="sphere",
+        robot_model=None,
+        robot_collision_model=None,
+        robot_visual_model=None,
+    ):
         """Returns the visualiser, displaying the robot and the target if they are in input.
 
         Parameters
@@ -43,35 +54,50 @@ class MeshcatWrapper:
         vis : MeshcatVisualizer
             visualizer from Meshcat
         """
-        if robot is not None:
-            self._robot = robot
-
-            self._TARGET = TARGET
-            self._RADII_TARGET = RADII_TARGET
-
-            self._OBSTACLE = OBSTACLE
-            self._OBSTACLE_DIM = OBSTACLE_DIM
-
-            # Creating the models of the robot
-            self._rmodel = self._robot.model
-            self._rcmodel = self._robot.collision_model
-            self.rvmodel = self._robot.visual_model
 
         # Creation of the visualizer,
         self.viewer = self.create_visualizer()
 
-        if self._TARGET is not None:
-            # Creating the target, which is here a hppfclSphere
+        if robot is not None:
+            self._robot = robot
+            # Creating the models of the robot
+            self._rmodel = self._robot.model
+            self._rcmodel = self._robot.collision_model
+            self._rvmodel = self._robot.visual_model
+
+        if TARGET is not None:
+            self._TARGET = TARGET
+            self._RADII_TARGET = RADII_TARGET
             self._renderSphere("target")
 
-        if self._OBSTACLE is not None:
+        if OBSTACLE is not None:
+            self._OBSTACLE = OBSTACLE
+            self._OBSTACLE_DIM = OBSTACLE_DIM
+            self._obstacle_type = obstacle_type
             # Creating the obstacle
-            self._renderBox("obstacle")
+            if self._obstacle_type == "box":
+                self._renderBox("obstacle")
+            if self._obstacle_type == "sphere":
+                self._renderSphere("obstacle", type="obstacle")
+
+        elif (
+            robot_model is not None
+            and robot_collision_model is not None
+            and robot_visual_model is not None
+        ):
+            self._rmodel = robot_model
+            self._rcmodel = robot_collision_model
+            self._rvmodel = robot_visual_model
 
         Viewer = pin.visualize.MeshcatVisualizer
 
-        if robot is not None:
-            self.viewer = Viewer(robot.model, robot.collision_model, robot.visual_model)
+        if (
+            robot is not None
+            or robot_model is not None
+            and robot_collision_model is not None
+            and robot_visual_model is not None
+        ):
+            self.viewer = Viewer(robot_model, robot_collision_model, robot_visual_model)
         self.viewer.initViewer(
             viewer=meshcat.Visualizer(zmq_url="tcp://127.0.0.1:6000")
         )
@@ -95,7 +121,9 @@ class MeshcatWrapper:
             self.viewer["/Axes"].set_property("visible", False)
         return self.viewer
 
-    def _renderSphere(self, e_name: str, color=np.array([1.0, 1.0, 1.0, 1.0])):
+    def _renderSphere(
+        self, e_name: str, color=np.array([1.0, 1.0, 1.0, 1.0]), type="target"
+    ):
         """Displaying a sphere in a meshcat server.
 
         Parameters
@@ -111,7 +139,16 @@ class MeshcatWrapper:
         )
 
         # Obtaining its position in the right format
-        T = get_transform(self._TARGET)
+        if type == "target":
+            T = get_transform(self._TARGET)
+            self.viewer[e_name].set_object(
+                g.Sphere(self._RADII_TARGET), self._meshcat_material(*color)
+            )
+        elif type == "obstacle":
+            self.viewer[e_name].set_object(
+                g.Sphere(self._OBSTACLE_DIM), self._meshcat_material(*color)
+            )
+            T = get_transform(self._OBSTACLE)
 
         # Applying the transformation to the object
         self.viewer[e_name].set_transform(T)
@@ -136,8 +173,6 @@ class MeshcatWrapper:
 
         # Applying the transformation to the object
         self.viewer[e_name].set_transform(T)
-
-                
 
     def _meshcat_material(self, r, g, b, a):
         """Converting RGBA color to meshcat material.
@@ -174,15 +209,23 @@ if __name__ == "__main__":
     rdata = rmodel.createData()
 
     # Generate a reachable target
-    p = generate_reachable_target(rmodel, rdata, "tool0")
+    p_target = pin.SE3.Identity()
+    p_target.translation = np.array([0.6, 0.6, 0.6])
 
     # Generate a reachable obstacle
-    l_translation = p.translation/2
-    l_rotation = np.identity(3)
-    l = p.copy()
-    l.translation = l_translation
-    l.rotation = l_rotation
- 
+    p_obstacle_translation = p_target.translation / 2
+    rotation = np.identity(3)
+    rotation[1, 1] = 0
+    rotation[2, 2] = 0
+    rotation[1, 2] = -1
+    rotation[2, 1] = 1
+    p_obstacle_rotation = rotation
+    p_obstacle = p_target.copy()
+    p_obstacle.translation = p_obstacle_translation
+    p_obstacle.rotation = p_obstacle_rotation
+
     # Generating the meshcat visualizer
     MeshcatVis = MeshcatWrapper()
-    vis = MeshcatVis.visualize(p, l, robot=robot)
+    vis = MeshcatVis.visualize(
+        p_target, p_obstacle, robot=robot, obstacle_type="sphere", OBSTACLE_DIM=3e-1
+    )
