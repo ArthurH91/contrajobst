@@ -90,7 +90,7 @@ urdf_model_path = join(join(model_path, "panda"), urdf_filename)
 
 ### HELPERS (Finite difference comutation of the gradient and the hessian)
 def grad_numdiff(Q: np.ndarray):
-    return numdiff(QP.cost, Q)
+    return numdiff(obstacle_cost_function, Q)
 
 
 def hess_numdiff(Q: np.ndarray):
@@ -110,13 +110,13 @@ def obstacle_cost_function(Q: np.ndarray, eps=1e-4):
 
         # Updating the pinocchio models
         pin.framesForwardKinematics(rmodel, rdata, q_t)
-        pin.updateGeometryPlacements(rmodel, rdata, gmodel, gdata)
+        pin.updateGeometryPlacements(rmodel, rdata, cmodel, cdata)
 
         # Getting the shape and the position of the end effector
-        EndeffID = rmodel.getFrameId("endeff")
-        EndeffID_geom = gmodel.getGeometryId("endeff_geom")
+        EndeffID = rmodel.getFrameId("panda2_leftfinger")
+        EndeffID_geom = cmodel.getGeometryId("panda2_leftfinger_0")
         endeff_pos = rdata.oMf[EndeffID]
-        endeff_shape = gmodel.geometryObjects[EndeffID_geom].geometry
+        endeff_shape = cmodel.geometryObjects[EndeffID_geom].geometry
 
         # Computing the nearest neighbors of the end effector and the obstacle
         dist_endeff_obs = pydiffcol.distance(
@@ -126,10 +126,10 @@ def obstacle_cost_function(Q: np.ndarray, eps=1e-4):
         # Computing the positions of the joints at each configuration
         # for oMg, geometry_objects in zip(gdata.oMg, gmodel.geometryObjects):
         #     print(geometry_objects)
-        #     dist_endeff_target = pydiffcol.distance(
-        #         geometry_objects.geometry, oMg, TARGET_SHAPE, TARGET, req, res
-        #     )
-        print(f"iteration :{t}, \n distance = {dist_endeff_obs}")
+        dist_endeff_target = pydiffcol.distance(
+            endeff_shape, endeff_pos, TARGET_SHAPE, TARGET, req, res
+        )
+        cost += 4 * (dist_endeff_target) ** 2
         if dist_endeff_obs < eps:
             print("contact")
             cost += (dist_endeff_obs - eps) ** 2
@@ -190,7 +190,7 @@ if __name__ == "__main__":
 
     # Trust region solver
     trust_region_solver = SolverNewtonMt(
-        QP.cost,
+        obstacle_cost_function,
         grad_numdiff,
         hess_numdiff,
         max_iter=MAX_ITER,
