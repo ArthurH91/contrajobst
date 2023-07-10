@@ -5,6 +5,9 @@ import time
 import copy
 
 
+RED = np.array([249, 136, 126, 125]) / 255
+
+
 def get_transform(T_: hppfcl.Transform3f):
     T = np.eye(4)
     if isinstance(T_, hppfcl.Transform3f):

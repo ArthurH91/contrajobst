@@ -50,10 +50,10 @@ WEIGHT_TERM_POS = 4
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
-TARGET.translation = np.array([0.6, 0.6, 0.6])
+TARGET.translation = np.array([-0.25, 0, 1.6])
 
 # Generate a reachable obstacle
-OBSTACLE_translation = TARGET.translation / 2 + [0.1, 0.2, 0.4]
+OBSTACLE_translation = TARGET.translation / 2 + [0.2, 0, 0.8]
 rotation = np.identity(3)
 rotation[1, 1] = 0
 rotation[2, 2] = 0
@@ -183,8 +183,8 @@ if __name__ == "__main__":
     )
 
     # Displaying the initial configuration of the robot
-    vis.display(INITIAL_CONFIG)
-
+    # vis.display(INITIAL_CONFIG)
+    vis.display(pin.neutral(rmodel))
     # Initial trajectory
     Q0 = np.concatenate([INITIAL_CONFIG] * (T + 1))
 

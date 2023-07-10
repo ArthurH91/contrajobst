@@ -6,7 +6,7 @@ import pinocchio as pin
 import meshcat
 import meshcat.geometry as g
 import meshcat.transformations as tf
-from utils import get_transform
+from utils import get_transform, RED
 
 
 class MeshcatWrapper:
@@ -102,6 +102,7 @@ class MeshcatWrapper:
             viewer=meshcat.Visualizer(zmq_url="tcp://127.0.0.1:6000")
         )
         self.viewer.loadViewerModel()
+        self.viewer.displayCollisions(True)
 
         return self.viewer
 
@@ -121,9 +122,7 @@ class MeshcatWrapper:
             self.viewer["/Axes"].set_property("visible", False)
         return self.viewer
 
-    def _renderSphere(
-        self, e_name: str, color=np.array([1.0, 1.0, 1.0, 1.0]), type="target"
-    ):
+    def _renderSphere(self, e_name: str, color=RED, type="target"):
         """Displaying a sphere in a meshcat server.
 
         Parameters
