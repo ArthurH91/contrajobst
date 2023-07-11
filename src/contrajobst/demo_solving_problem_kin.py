@@ -91,9 +91,7 @@ if __name__ == "__main__":
     # Creating the QP
     QP = ProblemInverseKinematics(
         rmodel,
-        rdata,
         cmodel,
-        cdata,
         TARGET,
         TARGET_SHAPE,
         obstacle=OBSTACLE,

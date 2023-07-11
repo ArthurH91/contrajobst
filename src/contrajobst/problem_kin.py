@@ -14,9 +14,7 @@ class ProblemInverseKinematics:
     def __init__(
         self,
         rmodel: pin.Model,
-        rdata: pin.Data,
         gmodel: pin.GeometryModel,
-        gdata: pin.GeometryData,
         target: np.ndarray,
         target_shape: hppfcl.ShapeBase,
         obstacle: np.ndarray,
@@ -41,13 +39,14 @@ class ProblemInverseKinematics:
 
         """
         self._rmodel = rmodel
-        self._rdata = rdata
         self._gmodel = gmodel
-        self._gdata = gdata
         self._target = target
         self._target_shape = target_shape
         self._obstacle = obstacle
         self._obstacle_shape = obstacle_shape
+
+        self._rdata = self._rmodel.createData()
+        self._gdata = self._gmodel.createData()
 
         # Storing the IDs of the frames of the end effector and the target
 
@@ -244,7 +243,7 @@ if __name__ == "__main__":
 
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
 
-    QP = ProblemInverseKinematics(rmodel, rdata, cmodel, cdata, TARGET, TARGET_SHAPE)
+    QP = ProblemInverseKinematics(rmodel, cmodel, TARGET, TARGET_SHAPE)
 
     res = QP.cost(q)
     print(res)
