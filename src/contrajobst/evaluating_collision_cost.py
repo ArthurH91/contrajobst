@@ -15,7 +15,7 @@ from utils import numdiff, display_last_traj, get_q_iter_from_Q
 
 
 WITH_NUMDIFF = False
-WITH_COMPUTE_TRAJ = False
+WITH_COMPUTE_TRAJ = True
 
 # ### HYPERPARMS
 T = 5
@@ -103,58 +103,47 @@ def hess_numdiff(q: np.ndarray):
     return numdiff(grad_numdiff, q)
 
 
-def obstacle_cost_function(Q: np.ndarray, eps=1e-4):
-    # List of coefficients to move the obstacle
-    factor_obs = [-0.1, -0.08, -0.06, -0.04, -0.02, 0, 0.02, 0.04]
+def eval_cost_function_all_configurations(Q, link_name, bool_cost=True):
+    config0 = []
+    config1 = []
+    config2 = []
+    config3 = []
+    config4 = []
 
-    # Creating the lists of the costs
-    cost_panda2_link5_sc_3 = [0]
-    cost_panda2_link5_sc_4 = [0]
-    cost_panda2_link6_sc_0 = [0]
-    cost_panda2_link6_sc_1 = [0]
-    cost_panda2_link6_sc_2 = [0]
-    cost_panda2_link7_sc_0 = [0]
-    cost_panda2_link7_sc_1 = [0]
-    cost_panda2_link7_sc_2 = [0]
+    for t in range(T):
+        theta = np.arange(-0.2, 0.2, 1e-4)
+        q_4 = get_q_iter_from_Q(Q, t, rmodel.nq)
+        eps = 1e-5
+        # Results requests from pydiffcol
+        req = pydiffcol.DistanceRequest()
+        res = pydiffcol.DistanceResult()
 
-    for factor in factor_obs:
-        # Creating the obstacle
-        OBSTACLE_translation = TARGET.translation / 2 + [
-            0.2 + factor,
-            0 + factor,
-            0.8 + factor,
-        ]
-        rotation = np.identity(3)
-        rotation[1, 1] = 0
-        rotation[2, 2] = 0
-        rotation[1, 2] = -1
-        rotation[2, 1] = 1
-        OBSTACLE_rotation = rotation
-        OBSTACLE = TARGET.copy()
-        OBSTACLE.translation = OBSTACLE_translation
-        OBSTACLE.rotation = OBSTACLE_rotation
-        OBSTACLE_SHAPE = hppfcl.Sphere(1e-1)
+        # Updating the pinocchio models
+        pin.framesForwardKinematics(rmodel, rdata, q_4)
+        pin.updateGeometryPlacements(rmodel, rdata, cmodel, cdata)
 
-        print(f"factor : {factor}")
+        cost_panda2_link = []
 
-        # Going through all the configurations of the robot
-        for t in range(T):
-            # Getting each configuration specifically
-            q_t = get_q_iter_from_Q(Q, t, rmodel.nq)
+        for oMg, geometry_objects in zip(cdata.oMg, cmodel.geometryObjects):
+            if geometry_objects.name == link_name:
+                for theta_val in theta:
+                    # Creating the obstacle
+                    OBSTACLE_translation = TARGET.translation / 2 + [
+                        0.2 + theta_val,
+                        0 + theta_val,
+                        0.8 + theta_val,
+                    ]
+                    rotation = np.identity(3)
+                    rotation[1, 1] = 0
+                    rotation[2, 2] = 0
+                    rotation[1, 2] = -1
+                    rotation[2, 1] = 1
+                    OBSTACLE_rotation = rotation
+                    OBSTACLE = TARGET.copy()
+                    OBSTACLE.translation = OBSTACLE_translation
+                    OBSTACLE.rotation = OBSTACLE_rotation
+                    OBSTACLE_SHAPE = hppfcl.Sphere(1e-1)
 
-            # Results requests from pydiffcol
-            req = pydiffcol.DistanceRequest()
-            res = pydiffcol.DistanceResult()
-
-            # Updating the pinocchio models
-            pin.framesForwardKinematics(rmodel, rdata, q_t)
-            pin.updateGeometryPlacements(rmodel, rdata, cmodel, cdata)
-
-            # Computing the positions of the joints at each configuration
-            for oMg, geometry_objects in zip(cdata.oMg, cmodel.geometryObjects):
-                if isinstance(geometry_objects.geometry, hppfcl.Sphere) or isinstance(
-                    geometry_objects.geometry, hppfcl.Cylinder
-                ):
                     dist = pydiffcol.distance(
                         geometry_objects.geometry,
                         oMg,
@@ -163,82 +152,28 @@ def obstacle_cost_function(Q: np.ndarray, eps=1e-4):
                         req,
                         res,
                     )
-
-                    if dist < eps:
-                        print(
-                            f"contact here : {geometry_objects.name}, for the configuration number : {t}"
-                        )
-                        if geometry_objects.name == "panda2_link5_sc_3":
-                            if t < T - 1:
-                                cost_panda2_link5_sc_3.append(
-                                    (dist - eps) ** 2 + cost_panda2_link5_sc_3[-1]
-                                )
-                            else:
-                                cost_panda2_link5_sc_3.append((dist - eps) ** 2)
-                        if geometry_objects.name == "panda2_link5_sc_4":
-                            if t < T - 1:
-                                cost_panda2_link5_sc_4.append(
-                                    (dist - eps) ** 2 + cost_panda2_link5_sc_4[-1]
-                                )
-                            else:
-                                cost_panda2_link5_sc_4.append((dist - eps) ** 2)
-                        if geometry_objects.name == "panda2_link6_sc_0":
-                            if t < T - 1:
-                                cost_panda2_link6_sc_0.append(
-                                    (dist - eps) ** 2 + cost_panda2_link6_sc_0[-1]
-                                )
-                            else:
-                                cost_panda2_link6_sc_0.append((dist - eps) ** 2)
-                        if geometry_objects.name == "panda2_link6_sc_1":
-                            if t < T - 1:
-                                cost_panda2_link6_sc_1.append(
-                                    (dist - eps) ** 2 + cost_panda2_link6_sc_1[-1]
-                                )
-                            else:
-                                cost_panda2_link6_sc_1.append((dist - eps) ** 2)
-                        if geometry_objects.name == "panda2_link6_sc_2":
-                            if t < T - 1:
-                                cost_panda2_link6_sc_2.append(
-                                    (dist - eps) ** 2 + cost_panda2_link6_sc_2[-1]
-                                )
-                            else:
-                                cost_panda2_link6_sc_2.append((dist - eps) ** 2)
-                        if geometry_objects.name == "panda2_link7_sc_0":
-                            if t < T - 1:
-                                cost_panda2_link7_sc_0.append(
-                                    (dist - eps) ** 2 + cost_panda2_link7_sc_0[-1]
-                                )
-                            else:
-                                cost_panda2_link7_sc_0.append((dist - eps) ** 2)
-                        if geometry_objects.name == "panda2_link7_sc_1":
-                            if t < T - 1:
-                                cost_panda2_link7_sc_1.append(
-                                    (dist - eps) ** 2 + cost_panda2_link7_sc_1[-1]
-                                )
-                            else:
-                                cost_panda2_link7_sc_1.append((dist - eps) ** 2)
-                        if geometry_objects.name == "panda2_link7_sc_2":
-                            if t < T - 1:
-                                cost_panda2_link7_sc_2.append(
-                                    (dist - eps) ** 2 + cost_panda2_link7_sc_2[-1]
-                                )
-                            else:
-                                cost_panda2_link7_sc_2.append((dist - eps) ** 2)
-
-    return (
-        cost_panda2_link5_sc_3,
-        cost_panda2_link5_sc_4,
-        cost_panda2_link6_sc_0,
-        cost_panda2_link6_sc_1,
-        cost_panda2_link6_sc_2,
-        cost_panda2_link7_sc_0,
-        cost_panda2_link7_sc_1,
-        cost_panda2_link7_sc_2,
-    )
+                    if dist < eps and bool_cost:
+                        cost_panda2_link.append((dist - eps) ** 2)
+                    elif bool_cost:
+                        cost_panda2_link.append(0)
+                    else:
+                        cost_panda2_link.append(dist)
+                else:
+                    pass
+        if t == 0:
+            config0 = cost_panda2_link.copy()
+        if t == 1:
+            config1 = cost_panda2_link.copy()
+        if t == 2:
+            config2 = cost_panda2_link.copy()
+        if t == 3:
+            config3 = cost_panda2_link.copy()
+        if t == 4:
+            config4 = cost_panda2_link.copy()
+    return config0, config1, config2, config3, config4
 
 
 if __name__ == "__main__":
-    # pin.seed(1)
     ###* LOADING THE ROBOT
 
     pinocchio_model_dir = join(dirname(dirname(str(abspath(__file__)))), "models")
@@ -301,85 +236,49 @@ if __name__ == "__main__":
             NLP.cost,
             NLP.grad,
             NLP.hess,
-            verbose=True,
-            bool_plot_results=True,
+            verbose=False,
+            bool_plot_results=False,
             max_iter=1000,
         )
         res = trust_region_solver(Q0)
 
         Q_eval = trust_region_solver._xval_k
-    # display_last_traj(vis, Q_eval, q0, T)
+    display_last_traj(vis, Q_eval, q0, T)
 
-    (
-        cost_panda2_link5_sc_3,
-        cost_panda2_link5_sc_4,
-        cost_panda2_link6_sc_0,
-        cost_panda2_link6_sc_1,
-        cost_panda2_link6_sc_2,
-        cost_panda2_link7_sc_0,
-        cost_panda2_link7_sc_1,
-        cost_panda2_link7_sc_2,
-    ) = obstacle_cost_function(Q_eval)
+    links = [
+        "panda2_link5_sc_3",
+        "panda2_link5_sc_4",
+        "panda2_link6_sc_0",
+        "panda2_link6_sc_1",
+        "panda2_link6_sc_2",
+        "panda2_link7_sc_0",
+        "panda2_link7_sc_1",
+        "panda2_link7_sc_2",
+    ]
+    subplots = [421, 422, 423, 424, 425, 426, 427, 428]
+    theta = np.arange(-0.2, 0.2, 1e-4)
+    plt.subplots(layout="constrained")
 
-    plt.figure()
-    plt.subplot(221)
-    for t in range(T):
-        plt.plot(cost_panda2_link5_sc_3[t * T : (t + 1) * T])
-        plt.legend(f"{-0.1 + t * 0.02}")
-    plt.xlabel("Configurations")
-    plt.ylabel("Cost")
-    plt.title(" Link 5 SC 3")
-    plt.subplot(222)
-    for t in range(T):
-        plt.plot(cost_panda2_link5_sc_4[t * T : (t + 1) * T])
-        plt.legend(f"{-0.1 + t * 0.02}")
-    plt.xlabel("Configurations")
-    plt.ylabel("Cost")
-    plt.title(" Link 5 SC 4")
-    plt.subplot(223)
-    for t in range(T):
-        plt.plot(cost_panda2_link6_sc_0[t * T : (t + 1) * T])
-        plt.legend(f"{-0.1 + t * 0.02}")
-    plt.xlabel("Configurations")
-    plt.ylabel("Cost")
-    plt.title(" Link 6 SC 0")
-    plt.subplot(224)
-    for t in range(T):
-        plt.plot(cost_panda2_link6_sc_1[t * T : (t + 1) * T])
-        plt.legend(f"{-0.1 + t * 0.02}")
-    plt.xlabel("Configurations")
-    plt.ylabel("Cost")
-    plt.title(" Link 6 SC 1")
+    for name, plotnumber in zip(links, subplots):
+        (
+            config0,
+            config1,
+            config2,
+            config3,
+            config4,
+        ) = eval_cost_function_all_configurations(Q_eval, name, bool_cost=False)
 
-    plt.figure()
-
-    plt.subplot(221)
-    for t in range(T):
-        plt.plot(cost_panda2_link6_sc_2[t * T : (t + 1) * T])
-        plt.legend(f"{-0.1 + t * 0.02}")
-    plt.xlabel("Configurations")
-    plt.ylabel("Cost")
-    plt.title(" Link 6 SC 2")
-    plt.subplot(222)
-    for t in range(T):
-        plt.plot(cost_panda2_link7_sc_0[t * T : (t + 1) * T])
-        plt.legend(f"{-0.1 + t * 0.02}")
-    plt.xlabel("Configurations")
-    plt.ylabel("Cost")
-    plt.title(" Link 7 SC 0")
-    plt.subplot(223)
-    for t in range(T):
-        plt.plot(cost_panda2_link7_sc_1[t * T : (t + 1) * T])
-        plt.legend(f"{10* (-0.1 + t * 0.02)}")
-    plt.xlabel("Configurations")
-    plt.ylabel("Cost")
-    plt.title(" Link 7 SC 1")
-    plt.subplot(224)
-    for t in range(T):
-        plt.plot(cost_panda2_link7_sc_2[t * T : (t + 1) * T])
-        plt.legend(f"{-0.1 + t * 0.02}")
-    plt.xlabel("Configurations")
-    plt.ylabel("Cost")
-    plt.title(" Link 7 SC 2")
-    plt.figlegend("")
+        plt.subplot(plotnumber)
+        plt.plot(theta, config0, label="q_0")
+        plt.plot(theta, config1, label="q_1")
+        plt.plot(theta, config2, label="q_2")
+        plt.plot(theta, config3, label="q_3")
+        plt.plot(theta, config4, label="q_4")
+        plt.title(name, pad=20)
+        plt.legend()
+        plt.xlabel("Theta")
+        plt.ylabel("Distance function")
+    plt.suptitle(
+        "Distance obstacle - links in fonction of the position of the obstacle"
+    )
     plt.show()
