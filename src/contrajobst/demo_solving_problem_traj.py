@@ -69,7 +69,7 @@ OBSTACLE.rotation = OBSTACLE_rotation
 INITIAL_CONFIG = np.array([0, -2.5, 2, -1.2, -1.7, 0, 0])
 
 # Max iterations of the solver
-MAX_ITER = 20
+MAX_ITER = 2000
 
 WITH_DISPLAY = True
 WITH_PLOT = False
@@ -181,6 +181,7 @@ if __name__ == "__main__":
         obstacle_type="sphere",
         OBSTACLE_DIM=1e-1,
     )
+    vis = vis[0]
 
     # Displaying the initial configuration of the robot
     # vis.display(INITIAL_CONFIG)

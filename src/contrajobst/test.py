@@ -106,3 +106,5 @@ q0 = pin.neutral(model_reduced)
 viz.display(q0)
 viz.displayCollisions(True)
 viz.displayVisuals(True)
+
+viz["obstacle"].set_transform(pin.SE3.Identity())

@@ -37,7 +37,7 @@ def get_q_iter_from_Q(Q: np.ndarray, iter: int, nq: int):
 
 
 def get_difference_between_q_iter(Q: np.ndarray, iter: int, nq: int):
-    """Returns the difference between the q_iter and q_iter+1 in the array self.Q
+    """Returns the difference between the q_iter+1 and q_iter in the array self.Q
 
     Parameters
     ----------
@@ -71,6 +71,47 @@ def display_last_traj(vis, Q: np.ndarray, q0: np.ndarray, T: int, dt=None):
     """
     for q_iter in [q0] + np.split(Q, T + 1):
         vis.display(q_iter)
+        if dt is None:
+            input()
+        else:
+            time.sleep(dt)
+
+
+def display_last_traj_with_obstacle_moving(
+    vis, meshcatvis, Q: np.ndarray, q0: np.ndarray, T: int, theta_list, TARGET, dt=None
+):
+    """Display the trajectory computed by the solver
+
+    Parameters
+    ----------
+    vis : Meshcat.Visualizer
+        Meshcat visualizer
+    Q : np.ndarray
+        Optimization vector.
+    q0 : np.ndarray
+        Initial configuration vector
+    nq : int
+        size of q_iter
+    """
+    for q_iter in [q0] + np.split(Q, T + 1):
+        vis.display(q_iter)
+        for theta in theta_list:
+            OBSTACLE_translation = TARGET.translation / 2 + [
+                0.2 + theta,
+                0 + theta,
+                0.8 + theta,
+            ]
+            rotation = np.identity(3)
+            rotation[1, 1] = 0
+            rotation[2, 2] = 0
+            rotation[1, 2] = -1
+            rotation[2, 1] = 1
+            OBSTACLE_rotation = rotation
+            OBSTACLE = TARGET.copy()
+            OBSTACLE.translation = OBSTACLE_translation
+            OBSTACLE.rotation = OBSTACLE_rotation
+            meshcatvis["obstacle"].set_transform(get_transform(OBSTACLE))
+            time.sleep(dt)
         if dt is None:
             input()
         else:

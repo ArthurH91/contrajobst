@@ -11,11 +11,17 @@ from wrapper_meshcat import MeshcatWrapper
 from wrapper_robot import RobotWrapper
 from solver_newton_mt import SolverNewtonMt
 from problem_traj_without_obs import NLP_without_obs
-from utils import numdiff, display_last_traj, get_q_iter_from_Q
+from problem_traj_obs import CollisionAvoidance
+from utils import (
+    numdiff,
+    display_last_traj,
+    get_q_iter_from_Q,
+    display_last_traj_with_obstacle_moving,
+)
 
 
 WITH_NUMDIFF = False
-WITH_COMPUTE_TRAJ = True
+WITH_COMPUTE_TRAJ = False
 
 # ### HYPERPARMS
 T = 5
@@ -170,7 +176,7 @@ def eval_cost_function_all_configurations(Q, link_name, bool_cost=True):
             config3 = cost_panda2_link.copy()
         if t == 4:
             config4 = cost_panda2_link.copy()
-    return config0, config1, config2, config3, config4
+    return config0, config1, config2, config3, config4, theta
 
 
 if __name__ == "__main__":
@@ -205,7 +211,7 @@ if __name__ == "__main__":
 
     # Generating the meshcat visualizer
     MeshcatVis = MeshcatWrapper()
-    vis = MeshcatVis.visualize(
+    vis, vis_meshcat = MeshcatVis.visualize(
         TARGET,
         OBSTACLE=OBSTACLE,
         obstacle_type="sphere",
@@ -243,7 +249,6 @@ if __name__ == "__main__":
         res = trust_region_solver(Q0)
 
         Q_eval = trust_region_solver._xval_k
-    display_last_traj(vis, Q_eval, q0, T)
 
     links = [
         "panda2_link5_sc_3",
@@ -256,7 +261,6 @@ if __name__ == "__main__":
         "panda2_link7_sc_2",
     ]
     subplots = [421, 422, 423, 424, 425, 426, 427, 428]
-    theta = np.arange(-0.2, 0.2, 1e-4)
     plt.subplots(layout="constrained")
 
     for name, plotnumber in zip(links, subplots):
@@ -266,6 +270,7 @@ if __name__ == "__main__":
             config2,
             config3,
             config4,
+            theta,
         ) = eval_cost_function_all_configurations(Q_eval, name, bool_cost=False)
 
         plt.subplot(plotnumber)
@@ -282,3 +287,25 @@ if __name__ == "__main__":
         "Distance obstacle - links in fonction of the position of the obstacle"
     )
     plt.show()
+
+    # display_last_traj_with_obstacle_moving(
+    #     vis, vis_meshcat, Q_eval, q0, T, theta, TARGET, dt=1e-4
+    # )
+
+    NLP = CollisionAvoidance(
+        rmodel,
+        rdata,
+        cmodel,
+        cdata,
+        TARGET,
+        TARGET_SHAPE,
+        OBSTACLE,
+        OBSTACLE_SHAPE,
+        1e-5,
+        T,
+        q0,
+        WEIGHT_Q0,
+        WEIGHT_DQ,
+        2,
+        4,
+    )
