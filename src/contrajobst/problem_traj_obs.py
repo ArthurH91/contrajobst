@@ -255,6 +255,70 @@ class CollisionAvoidance:
         # Computes the cost to initialize the variables.
         self.cost(Q)
 
+        ###* RUNNING AND OBSTACLE RESIDUALS
+
+        # Derivatives of the running residuals
+        derivative_running_residual = np.zeros((2 * self._nq, self._nq))
+        derivative_running_residual[: self._nq, :] = np.ones((self._nq, self._nq))
+        derivative_running_residual[self._nq :, :] = -np.ones((self._nq, self._nq))
+
+        # Derivatives of the obstacles residuals
+        self._derivative_obs_residual = np.zeros((1, self._nq))
+        # Going through all the convex objects composing the robot and
+        # computing the distance between them and the obstacle
+        for oMg, geometry_objects in zip(self._cdata.oMg, self._cmodel.geometryObjects):
+            # Only selecting the shapes of the robot and not the environement
+            if not isinstance(geometry_objects.geometry, hppfcl.Box):
+                # Computing the distance between the given part of the robot and the obstacle
+                dist = pydiffcol.distance(
+                    geometry_objects.geometry,
+                    oMg,
+                    self._OBSTACLE_SHAPE,
+                    self._OBSTACLE,
+                    self._req,
+                    self._res,
+                )
+                # If the given part of the robot is too close to the obstacle, a residual is added. 0 Otherwise
+                if dist < self._eps_collision_avoidance:
+                    # Computing the derivative of the terminal residual
+
+                    # q_0 = get_q_iter_from_Q(self._Q, self._T, self._rmodel.nq)
+
+                    # Computing the jacobians in pinocchio
+                    pin.computeJointJacobians(self._rmodel, self._rdata, self._q0)
+
+                    # Computing the derivatives of the distance
+                    _ = pydiffcol.distance_derivatives(
+                        self.endeff_Shape,
+                        self.endeff_Transform,
+                        self._TARGET_SHAPE,
+                        self._TARGET,
+                        self._req,
+                        self._res,
+                    )
+
+                    # Getting the frame jacobian from the end effector in the LOCAL reference frame
+                    jacobian = pin.computeFrameJacobian(
+                        self._rmodel, self._rdata, self._q0, self._EndeffID, pin.LOCAL
+                    )
+
+                    # The jacobian here is the multiplication of the jacobian of the end effector and the jacobian of the distance between the end effector and the target
+                    J = jacobian.T @ self._res.dw_dq1.T
+                    derivative_obs_residual_i = self._WEIGHT_TERM * J.T
+
+                else:
+                    derivative_obs_residual_i = np.zeros((3, self._nq))
+
+                self._derivative_obs_residual = np.concatenate(
+                    (self._derivative_obs_residual, derivative_obs_residual_i)
+                )
+
+        derivative_residual = np.concatenate(
+            (derivative_running_residual, self._derivative_obs_residual)
+        )
+
+        return derivative_residual
+
 
 if __name__ == "__main__":
     print("ok")

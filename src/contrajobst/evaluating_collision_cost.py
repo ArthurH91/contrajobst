@@ -309,3 +309,5 @@ if __name__ == "__main__":
         2,
         4,
     )
+
+    print(NLP.grad(Q_eval).shape)
