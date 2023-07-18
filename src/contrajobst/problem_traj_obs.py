@@ -57,6 +57,41 @@ class CollisionAvoidance:
         WEIGHT_OBS: float,
         WEIGHT_TERM: float,
     ):
+        """Class wwhich computes the cost, the gradient and the hessian of the NLP for collision avoidance.
+
+        Parameters
+        ----------
+        rmodel : pin.Model
+            Pinocchio Model of the robot.
+        rdata : pin.Data
+            Data of the model.
+        cmodel : pin.Model
+            Collision model of the robot.
+        cdata : pin.Data
+            Collision data of the robot
+        TARGET : pin.SE3
+            Position of the target, in a pin.SE3.
+        TARGET_SHAPE : hppfcl.ShapeBase
+            Shape of the target, have to be a convex one from hppfcl.ShapeBase.
+        OBSTACLE : pin.SE3
+            Position of the obstacle, in a pin.SE3.
+        OBSTACLE_SHAPE : hppfcl.ShapeBase
+            Shape of the obstacle, have to be a convex one from hppfcl.ShapeBase.
+        eps_collision_avoidance : float
+            Criteria of collision.
+        T : int
+            Number of configurations in a trajectory.
+        q0 : np.ndarray
+            Initial ocnfiguration of the robot.
+        WEIGHT_Q0 : float
+            Weight penalizing the initial position.
+        WEIGHT_DQ : float
+            Weight penalizing the displacement of the robot.
+        WEIGHT_OBS : float
+            Weight penalizing the collision with the obstacle.
+        WEIGHT_TERM : float
+            Weight penalizing the distance between the end effector and the target.
+        """
         # Models of the robot
         self._rmodel = rmodel  # Robot Model of pinocchio
         self._cmodel = cmodel  # Collision Model of the robot
@@ -215,6 +250,10 @@ class CollisionAvoidance:
         self.costval = self._initial_cost + self._terminal_cost + self._principal_cost
 
         return self.costval
+
+    def grad(self, Q: np.ndarray):
+        # Computes the cost to initialize the variables.
+        self.cost(Q)
 
 
 if __name__ == "__main__":
