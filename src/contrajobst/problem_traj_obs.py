@@ -53,7 +53,7 @@ class CollisionAvoidance:
         T: int,
         q0: np.ndarray,
         WEIGHT_Q0: float,
-        WEIGHT_RUNNING: float,
+        WEIGHT_DQ: float,
         WEIGHT_OBS: float,
         WEIGHT_TERM: float,
     ):
@@ -75,7 +75,7 @@ class CollisionAvoidance:
         self._q0 = q0  # Initial configuraiton of the robot
         self._WEIGHT_Q0 = WEIGHT_Q0  # Weight of the initial cost
         self._eps_collision_avoidance = eps_collision_avoidance
-        self._WEIGHT_RUNNING = WEIGHT_RUNNING  # Weight of the running cost
+        self._WEIGHT_DQ = WEIGHT_DQ  # Weight of the running cost
         self._WEIGHT_OBS = WEIGHT_OBS  # Weight of the obstacle cost
         self._WEIGHT_TERM = WEIGHT_TERM  # Weight of the terminal cost
 
@@ -137,8 +137,7 @@ class CollisionAvoidance:
             self._running_obstacle_residual = np.concatenate(
                 (
                     self._running_obstacle_residual,
-                    self._WEIGHT_RUNNING
-                    * (get_difference_between_q_iter(Q, t, self._nq)),
+                    self._WEIGHT_DQ * (get_difference_between_q_iter(Q, t, self._nq)),
                 )
             )
 

@@ -97,14 +97,16 @@ class MeshcatWrapper:
             and robot_collision_model is not None
             and robot_visual_model is not None
         ):
-            self.viewer = Viewer(robot_model, robot_collision_model, robot_visual_model)
-        self.viewer.initViewer(
+            self.viewer_pin = Viewer(
+                robot_model, robot_collision_model, robot_visual_model
+            )
+        self.viewer_pin.initViewer(
             viewer=meshcat.Visualizer(zmq_url="tcp://127.0.0.1:6000")
         )
-        self.viewer.loadViewerModel()
-        self.viewer.displayCollisions(True)
+        self.viewer_pin.loadViewerModel()
+        self.viewer_pin.displayCollisions(True)
 
-        return self.viewer
+        return self.viewer_pin, self.viewer
 
     def create_visualizer(self):
         """Creation of an empty visualizer.
@@ -196,6 +198,25 @@ class MeshcatWrapper:
         material.color = int(r * 255) * 256**2 + int(g * 255) * 256 + int(b * 255)
         material.opacity = a
         return material
+
+    def applyConfiguration(self, name, placement):
+        if isinstance(placement, list) or isinstance(placement, tuple):
+            placement = np.array(placement)
+        if isinstance(placement, pin.SE3):
+            R, p = placement.rotation, placement.translation
+            T = np.r_[np.c_[R, p], [[0, 0, 0, 1]]]
+        elif isinstance(placement, np.ndarray):
+            if placement.shape == (7,):  # XYZ-quat
+                R = pin.Quaternion(np.reshape(placement[3:], [4, 1])).matrix()
+                p = placement[:3]
+                T = np.r_[np.c_[R, p], [[0, 0, 0, 1]]]
+            else:
+                print("Error, np.shape of placement is not accepted")
+                return False
+        else:
+            print("Error format of placement is not accepted")
+            return False
+        self.viewer[name].set_transform(T)
 
 
 if __name__ == "__main__":

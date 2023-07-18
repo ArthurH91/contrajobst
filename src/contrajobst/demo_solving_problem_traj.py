@@ -36,9 +36,8 @@ import pydiffcol
 
 from wrapper_robot import RobotWrapper
 from wrapper_meshcat import MeshcatWrapper
-from problem_traj import QuadratricProblemNLP
+from problem_traj_obs import CollisionAvoidance
 from solver_newton_mt import SolverNewtonMt
-from solver_casadi import CasadiSolver
 from utils import display_last_traj, numdiff, get_q_iter_from_Q
 
 # ### HYPERPARMS
@@ -69,10 +68,10 @@ OBSTACLE.rotation = OBSTACLE_rotation
 INITIAL_CONFIG = np.array([0, -2.5, 2, -1.2, -1.7, 0, 0])
 
 # Max iterations of the solver
-MAX_ITER = 2000
+MAX_ITER = 50
 
 WITH_DISPLAY = True
-WITH_PLOT = False
+WITH_PLOT = True
 WITH_NUMDIFF_SOLVE = False
 WARMSTART_IPOPT_WITH_TRS = False
 WITH_CASADI = False
@@ -90,7 +89,7 @@ urdf_model_path = join(join(model_path, "panda"), urdf_filename)
 
 ### HELPERS (Finite difference comutation of the gradient and the hessian)
 def grad_numdiff(Q: np.ndarray):
-    return numdiff(obstacle_cost_function, Q)
+    return numdiff(ca.cost, Q)
 
 
 def hess_numdiff(Q: np.ndarray):
@@ -155,19 +154,22 @@ if __name__ == "__main__":
     # OBSTACLE_SHAPE = hppfcl.Box(5e-1, 5e-1, 5e-2)
     OBSTACLE_SHAPE = hppfcl.Sphere(1e-1)
     # Creating the QP
-    QP = QuadratricProblemNLP(
+    ca = CollisionAvoidance(
         rmodel,
+        rdata,
         cmodel,
+        cdata,
         q0=INITIAL_CONFIG,
-        target=TARGET,
-        target_shape=TARGET_SHAPE,
-        obstacle=OBSTACLE,
-        obstacle_shape=OBSTACLE_SHAPE,
+        TARGET=TARGET,
+        TARGET_SHAPE=TARGET_SHAPE,
+        OBSTACLE=OBSTACLE,
+        OBSTACLE_SHAPE=OBSTACLE_SHAPE,
+        eps_collision_avoidance=1e-5,
         T=T,
-        weight_q0=WEIGHT_Q0,
-        weight_dq=WEIGHT_DQ,
-        weight_obs=WEIGHT_OBS,
-        weight_term_pos=WEIGHT_TERM_POS,
+        WEIGHT_Q0=WEIGHT_Q0,
+        WEIGHT_DQ=WEIGHT_DQ,
+        WEIGHT_OBS=WEIGHT_OBS,
+        WEIGHT_TERM=WEIGHT_TERM_POS,
     )
 
     # Generating the meshcat visualizer
@@ -184,14 +186,14 @@ if __name__ == "__main__":
     vis = vis[0]
 
     # Displaying the initial configuration of the robot
-    # vis.display(INITIAL_CONFIG)
     vis.display(pin.neutral(rmodel))
     # Initial trajectory
     Q0 = np.concatenate([INITIAL_CONFIG] * (T + 1))
 
+    print(ca.cost(Q0))
     # Trust region solver
     trust_region_solver = SolverNewtonMt(
-        obstacle_cost_function,
+        ca.cost,
         grad_numdiff,
         hess_numdiff,
         max_iter=MAX_ITER,
