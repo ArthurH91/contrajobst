@@ -22,6 +22,7 @@ from utils import (
 
 WITH_NUMDIFF = False
 WITH_COMPUTE_TRAJ = False
+WITH_PLOT = False
 
 # ### HYPERPARMS
 T = 5
@@ -260,33 +261,34 @@ if __name__ == "__main__":
         "panda2_link7_sc_1",
         "panda2_link7_sc_2",
     ]
-    subplots = [421, 422, 423, 424, 425, 426, 427, 428]
-    plt.subplots(layout="constrained")
+    if WITH_PLOT:
+        subplots = [421, 422, 423, 424, 425, 426, 427, 428]
+        plt.subplots(layout="constrained")
 
-    for name, plotnumber in zip(links, subplots):
-        (
-            config0,
-            config1,
-            config2,
-            config3,
-            config4,
-            theta,
-        ) = eval_cost_function_all_configurations(Q_eval, name, bool_cost=False)
+        for name, plotnumber in zip(links, subplots):
+            (
+                config0,
+                config1,
+                config2,
+                config3,
+                config4,
+                theta,
+            ) = eval_cost_function_all_configurations(Q_eval, name, bool_cost=False)
 
-        plt.subplot(plotnumber)
-        plt.plot(theta, config0, label="q_0")
-        plt.plot(theta, config1, label="q_1")
-        plt.plot(theta, config2, label="q_2")
-        plt.plot(theta, config3, label="q_3")
-        plt.plot(theta, config4, label="q_4")
-        plt.title(name, pad=20)
-        plt.legend()
-        plt.xlabel("Theta")
-        plt.ylabel("Distance function")
-    plt.suptitle(
-        "Distance obstacle - links in fonction of the position of the obstacle"
-    )
-    plt.show()
+            plt.subplot(plotnumber)
+            plt.plot(theta, config0, label="q_0")
+            plt.plot(theta, config1, label="q_1")
+            plt.plot(theta, config2, label="q_2")
+            plt.plot(theta, config3, label="q_3")
+            plt.plot(theta, config4, label="q_4")
+            plt.title(name, pad=20)
+            plt.legend()
+            plt.xlabel("Theta")
+            plt.ylabel("Distance function")
+        plt.suptitle(
+            "Distance obstacle - links in fonction of the position of the obstacle"
+        )
+        plt.show()
 
     # display_last_traj_with_obstacle_moving(
     #     vis, vis_meshcat, Q_eval, q0, T, theta, TARGET, dt=1e-4
@@ -311,3 +313,4 @@ if __name__ == "__main__":
     )
 
     print(NLP.grad(Q_eval).shape)
+    print(grad_numdiff(Q_eval).shape)

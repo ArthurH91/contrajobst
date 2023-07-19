@@ -52,7 +52,7 @@ def get_difference_between_q_iter(Q: np.ndarray, iter: int, nq: int):
         q_iter+1 - q_iter (np.ndarray): Difference of the arrays of the configuration of the robot at the iter-th and ither +1 -th steps.
 
     """
-    return get_q_iter_from_Q(Q, iter + 1, nq) - get_q_iter_from_Q(Q, iter, nq)
+    return get_q_iter_from_Q(Q, iter, nq) - get_q_iter_from_Q(Q, iter - 1, nq)
 
 
 def display_last_traj(vis, Q: np.ndarray, q0: np.ndarray, T: int, dt=None):

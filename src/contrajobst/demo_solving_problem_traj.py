@@ -64,9 +64,6 @@ OBSTACLE.translation = OBSTACLE_translation
 OBSTACLE.rotation = OBSTACLE_rotation
 
 
-# Initial configuration of the robot
-INITIAL_CONFIG = np.array([0, -2.5, 2, -1.2, -1.7, 0, 0])
-
 # Max iterations of the solver
 MAX_ITER = 50
 
@@ -149,6 +146,9 @@ if __name__ == "__main__":
     rdata = rmodel.createData()
     cdata = cmodel.createData()
 
+    # Initial configuration of the robot
+    INITIAL_CONFIG = pin.neutral(rmodel)
+
     # Creating the HPPFCL Shapes for the obstacles and the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
     # OBSTACLE_SHAPE = hppfcl.Box(5e-1, 5e-1, 5e-2)
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     if WITH_NUMDIFF_SOLVE:
         # Trust region solver with finite difference
         trust_region_solver_nd = SolverNewtonMt(
-            QP.cost,
+            ca.cost,
             grad_numdiff,
             hess_numdiff,
             max_iter=MAX_ITER,
