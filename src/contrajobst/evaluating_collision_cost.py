@@ -313,4 +313,4 @@ if __name__ == "__main__":
     )
 
     print(NLP.grad(Q_eval).shape)
-    print(grad_numdiff(Q_eval).shape)
+    print(NLP.hess(Q_eval))

@@ -70,6 +70,7 @@ MAX_ITER = 50
 WITH_DISPLAY = True
 WITH_PLOT = True
 WITH_NUMDIFF_SOLVE = False
+WITH_FMIN = False
 WARMSTART_IPOPT_WITH_TRS = False
 WITH_CASADI = False
 
@@ -93,46 +94,6 @@ def hess_numdiff(Q: np.ndarray):
     return numdiff(grad_numdiff, Q)
 
 
-def obstacle_cost_function(Q: np.ndarray, eps=1e-4):
-    # Going through all the configurations of the robot
-    cost = 0
-    for t in range(T):
-        # Getting each configuration specifically
-        q_t = get_q_iter_from_Q(Q, t, rmodel.nq)
-
-        # Results requests from pydiffcol
-        req = pydiffcol.DistanceRequest()
-        res = pydiffcol.DistanceResult()
-
-        # Updating the pinocchio models
-        pin.framesForwardKinematics(rmodel, rdata, q_t)
-        pin.updateGeometryPlacements(rmodel, rdata, cmodel, cdata)
-
-        # Getting the shape and the position of the end effector
-        EndeffID = rmodel.getFrameId("panda2_leftfinger")
-        EndeffID_geom = cmodel.getGeometryId("panda2_leftfinger_0")
-        endeff_pos = rdata.oMf[EndeffID]
-        endeff_shape = cmodel.geometryObjects[EndeffID_geom].geometry
-
-        # Computing the nearest neighbors of the end effector and the obstacle
-        dist_endeff_obs = pydiffcol.distance(
-            endeff_shape, endeff_pos, OBSTACLE_SHAPE, OBSTACLE, req, res
-        )
-
-        # Computing the positions of the joints at each configuration
-        # for oMg, geometry_objects in zip(gdata.oMg, gmodel.geometryObjects):
-        #     print(geometry_objects)
-        dist_endeff_target = pydiffcol.distance(
-            endeff_shape, endeff_pos, TARGET_SHAPE, TARGET, req, res
-        )
-        cost += 4 * (dist_endeff_target) ** 2
-        if dist_endeff_obs < eps:
-            print("contact")
-            cost += (dist_endeff_obs - eps) ** 2
-
-    return cost
-
-
 if __name__ == "__main__":
     # Creation of the robot
 
@@ -147,7 +108,7 @@ if __name__ == "__main__":
     cdata = cmodel.createData()
 
     # Initial configuration of the robot
-    INITIAL_CONFIG = pin.neutral(rmodel)
+    INITIAL_CONFIG = pin.randomConfiguration(rmodel)
 
     # Creating the HPPFCL Shapes for the obstacles and the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
@@ -186,16 +147,16 @@ if __name__ == "__main__":
     vis = vis[0]
 
     # Displaying the initial configuration of the robot
-    vis.display(pin.neutral(rmodel))
+    vis.display(INITIAL_CONFIG)
     # Initial trajectory
-    Q0 = np.concatenate([INITIAL_CONFIG] * (T + 1))
+    Q0 = np.concatenate([INITIAL_CONFIG] * (T))
 
     print(ca.cost(Q0))
     # Trust region solver
     trust_region_solver = SolverNewtonMt(
         ca.cost,
-        grad_numdiff,
-        hess_numdiff,
+        ca.grad,
+        ca.hess,
         max_iter=MAX_ITER,
         callback=None,
         verbose=True,
@@ -209,6 +170,9 @@ if __name__ == "__main__":
         trust_region_solver._reguk_history,
     )
     Q_trs = trust_region_solver._xval_k
+
+    if WITH_FMIN:
+        Q_fmin = fmin(ca.cost, Q0)
 
     if WITH_NUMDIFF_SOLVE:
         # Trust region solver with finite difference

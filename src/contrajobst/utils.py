@@ -69,7 +69,7 @@ def display_last_traj(vis, Q: np.ndarray, q0: np.ndarray, T: int, dt=None):
     nq : int
         size of q_iter
     """
-    for q_iter in [q0] + np.split(Q, T + 1):
+    for q_iter in [q0] + np.split(Q, T):
         vis.display(q_iter)
         if dt is None:
             input()

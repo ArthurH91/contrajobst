@@ -279,9 +279,15 @@ class CollisionAvoidance:
         self._derivative_residual = np.zeros((len(self._residual), self._nq * self._T))
 
         ###* DERIVATIVE OF THE INITIAL RESIDUAL
-        self._derivative_residual[: self._nq, : self._nq] = np.eye(self._nq)
+        self._derivative_residual[: self._nq, : self._nq] = np.eye(
+            self._nq
+        )  # Derivative of q0 - q_init wrt q0
+        self._derivative_residual[self._nq : 2 * self._nq, : self._nq] = -np.eye(
+            self._nq
+        )  # Derivative of q1 - q0 wrt q0.
 
         for t in range(1, self._T):
+            it = self._number_of_geom_objects * 3 + self._nq
             # Obtaining the current configuration
             q_t = get_q_iter_from_Q(Q, t, self._nq)
 
@@ -294,20 +300,33 @@ class CollisionAvoidance:
             ###* RUNNING AND OBSTACLE RESIDUALS
 
             # Creating the array storing the running and obstacle residuals
+            # The 2 * self._nq is for the derivative of the running residual (in between the collisions avoidance residuals
+            # and the 3 * self._number_of_geom is for the collision avoidance residuals.
             derivative_running_residual = np.zeros(
-                (self._nq + 3 * self._number_of_geom_objects, self._nq * self._T)
+                (2 * self._nq + 3 * self._number_of_geom_objects, self._nq * self._T)
             )
 
             # Computing the running residual
-            derivative_running_residual[: self._nq, : self._nq] = np.eye(self._nq)
-            derivative_running_residual[
-                self._nq : 2 * self._nq, self._nq : 2 * self._nq
-            ] = -np.eye(self._nq)
+            self._derivative_residual[
+                self._nq + (t - 1) * it : 2 * self._nq + (t - 1) * it,
+                t * self._nq : (t + 1) * self._nq,
+            ] = np.eye(
+                self._nq
+            )  # derivative of q i - q_i-1 w.r.t. q_i
+            if t < 4:
+                self._derivative_residual[
+                    self._nq + t * it : 2 * self._nq + t * it,
+                    t * self._nq : (t + 1) * self._nq,
+                ] = -np.eye(
+                    self._nq
+                )  # derivative of q_i +1 - q_i w.r.t. q_i
 
             # Derivatives of the obstacles residuals
-            self._derivative_obs_residual = np.zeros((1, self._nq))
+
             # Going through all the convex objects composing the robot and
             # computing the distance between them and the obstacle
+
+            i = 0  # Iterator to count for the geometrical objects of the robot.
 
             for oMg, geometry_objects in zip(
                 self._cdata.oMg, self._cmodel.geometryObjects
@@ -335,46 +354,91 @@ class CollisionAvoidance:
 
                         # Computing the derivatives of the distance
                         _ = pydiffcol.distance_derivatives(
-                            self.endeff_Shape,
-                            self.endeff_Transform,
-                            self._TARGET_SHAPE,
-                            self._TARGET,
+                            geometry_objects.geometry,
+                            oMg,
+                            self._OBSTACLE_SHAPE,
+                            self._OBSTACLE,
                             self._req,
                             self._res,
                         )
 
-                        # Getting the frame jacobian from the end effector in the LOCAL reference frame
+                        # Getting the frame jacobian from the geometry object in the LOCAL reference frame
                         jacobian = pin.computeFrameJacobian(
                             self._rmodel,
                             self._rdata,
-                            self._q0,
-                            self._EndeffID,
+                            q_t,
+                            geometry_objects.parentFrame,
                             pin.LOCAL,
                         )
 
-                        # The jacobian here is the multiplication of the jacobian of the end effector and the jacobian of the distance between the end effector and the target
+                        # The jacobian here is the multiplication of the jacobian of the end effector and the jacobian of the distance between the geometry object and the obstacle
                         J = jacobian.T @ self._res.dw_dq1.T
-                        derivative_obs_residual_i = self._WEIGHT_TERM * J.T
+                        self._derivative_residual[
+                            self._nq
+                            + it * (t - 1)
+                            + i * 3 : self._nq
+                            + it * (t - 1)
+                            + (i + 1) * 3,
+                            t * self._nq : (t + 1) * self._nq,
+                        ] = (
+                            self._WEIGHT_TERM * J.T
+                        )
 
                     else:
-                        derivative_obs_residual_i = np.zeros((3, self._nq))
+                        self._derivative_residual[
+                            self._nq
+                            + it * (t - 1)
+                            + i * 3 : self._nq
+                            + it * (t - 1)
+                            + (i + 1) * 3,
+                            t * self._nq : (t + 1) * self._nq,
+                        ] = np.zeros((3, self._nq))
 
-                    self._derivative_obs_residual = np.concatenate(
-                        (self._derivative_obs_residual, derivative_obs_residual_i)
-                    )
+                    i += 1
 
-            derivative_residual = np.concatenate(
-                (derivative_running_residual, self._derivative_obs_residual)
-            )
-            self._derivative_residual[
-                t * (self._number_of_geom_objects * 3)
-                + 1 : (t + 1) * (self._number_of_geom_objects * 3)
-                + 1,
-                t * self._nq : (t + 1) * self._nq,
-            ] = derivative_residual
-        self._derivative_residual = self._derivative_residual[1:, :]
+        ###* TERMINAL RESIDUAL DERIVATIVE
+
+        # Computing the distance from the end effector to the target
+        dist_endeff_target = pydiffcol.distance(
+            self.endeff_Shape,
+            self.endeff_Transform,
+            self._TARGET_SHAPE,
+            self._TARGET,
+            self._req,
+            self._res,
+        )
+
+        # Computing the distance derivatives
+        _ = pydiffcol.distance_derivatives(
+            self.endeff_Shape,
+            self.endeff_Transform,
+            self._OBSTACLE_SHAPE,
+            self._OBSTACLE,
+            self._req,
+            self._res,
+        )
+
+        # Getting the frame jacobian from the geometry object in the LOCAL reference frame
+        jacobian = pin.computeFrameJacobian(
+            self._rmodel,
+            self._rdata,
+            q_t,
+            geometry_objects.parentFrame,
+            pin.LOCAL,
+        )
+
+        self._derivative_residual[-3:, -7:] = (
+            self._WEIGHT_TERM * (jacobian.T @ self._res.dw_dq1.T).T
+        )
 
         return self._derivative_residual.T @ self._residual
+
+    def hess(self, Q: np.ndarray):
+        """Returns the hessian of the cost function with regards to the gauss newton approximation"""
+        self.cost(Q)
+        self.grad(Q)
+        self.hessval = self._derivative_residual.T @ self._derivative_residual
+        return self.hessval
 
 
 if __name__ == "__main__":
