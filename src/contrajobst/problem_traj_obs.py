@@ -122,10 +122,11 @@ class CollisionAvoidance:
 
         # Storing the IDs of the frame of the end effector
 
-        self._EndeffID = self._rmodel.getFrameId("panda2_leftfinger")
-        self._EndeffID_geom = self._cmodel.getGeometryId("panda2_leftfinger_0")
-        assert self._EndeffID_geom < len(self._cmodel.geometryObjects)
-        assert self._EndeffID < len(self._rmodel.frames)
+        self._EndeffID = self._rmodel.getFrameId("panda2_joint7")
+        self._EndeffID_geom = self._cmodel.getGeometryId("panda2_link7_sc_5")
+        self._Endeff_parent_frame = 68
+        assert self._EndeffID_geom <= len(self._cmodel.geometryObjects)
+        assert self._EndeffID <= len(self._rmodel.frames)
 
     def cost(self, Q: np.ndarray):
         """Computes the cost of the collision avoidance.
@@ -296,7 +297,9 @@ class CollisionAvoidance:
             pin.updateGeometryPlacements(
                 self._rmodel, self._rdata, self._cmodel, self._cdata
             )
-
+            pin.computeAllTerms(
+                self._rmodel, self._rdata, q_t, np.zeros(self._rmodel.nv)
+            )
             ###* RUNNING AND OBSTACLE RESIDUALS
 
             # Creating the array storing the running and obstacle residuals
@@ -398,6 +401,9 @@ class CollisionAvoidance:
 
         ###* TERMINAL RESIDUAL DERIVATIVE
 
+        # Computing the jacobians in pinocchio
+        pin.computeJointJacobians(self._rmodel, self._rdata, q_t)
+
         # Computing the distance from the end effector to the target
         dist_endeff_target = pydiffcol.distance(
             self.endeff_Shape,
@@ -418,12 +424,12 @@ class CollisionAvoidance:
             self._res,
         )
 
-        # Getting the frame jacobian from the geometry object in the LOCAL reference frame
+        # # Getting the frame jacobian from the geometry object in the LOCAL reference frame
         jacobian = pin.computeFrameJacobian(
             self._rmodel,
             self._rdata,
             q_t,
-            geometry_objects.parentFrame,
+            self._Endeff_parent_frame,
             pin.LOCAL,
         )
 

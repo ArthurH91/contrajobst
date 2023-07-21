@@ -26,33 +26,38 @@
 from os.path import dirname, join, abspath
 
 import numpy as np
-from numpy.linalg import norm
 import pinocchio as pin
 import time
-from scipy.optimize import fmin, fmin_bfgs
+from scipy.optimize import fmin
 import matplotlib.pyplot as plt
 import hppfcl
-import pydiffcol
 
 from wrapper_robot import RobotWrapper
 from wrapper_meshcat import MeshcatWrapper
 from problem_traj_obs import CollisionAvoidance
 from solver_newton_mt import SolverNewtonMt
-from utils import display_last_traj, numdiff, get_q_iter_from_Q
+from utils import display_last_traj, numdiff
+
+
+SEED = abs(int(np.sin(time.time() % 6.28) * 1000))
+print(f"SEED = {SEED}")
+SEED = 783
+
 
 # ### HYPERPARMS
 T = 5
 WEIGHT_Q0 = 0.001
-WEIGHT_DQ = 0.001
-WEIGHT_OBS = 1e-1
+WEIGHT_DQ = 1e-2
+WEIGHT_OBS = 1e-0
 WEIGHT_TERM_POS = 4
+MAX_ITER = 100
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
-TARGET.translation = np.array([-0.25, 0, 1.6])
+TARGET.translation = np.array([-0.25, 0, 0.8])
 
 # Generate a reachable obstacle
-OBSTACLE_translation = TARGET.translation / 2 + [0.2, 0, 0.8]
+OBSTACLE_translation = TARGET.translation / 2 + [0.2, 0, 1.0]
 rotation = np.identity(3)
 rotation[1, 1] = 0
 rotation[2, 2] = 0
@@ -63,9 +68,6 @@ OBSTACLE = TARGET.copy()
 OBSTACLE.translation = OBSTACLE_translation
 OBSTACLE.rotation = OBSTACLE_rotation
 
-
-# Max iterations of the solver
-MAX_ITER = 50
 
 WITH_DISPLAY = True
 WITH_PLOT = True
@@ -95,6 +97,8 @@ def hess_numdiff(Q: np.ndarray):
 
 
 if __name__ == "__main__":
+    pin.seed(SEED)
+
     # Creation of the robot
 
     robot_wrapper = RobotWrapper(
@@ -153,6 +157,7 @@ if __name__ == "__main__":
 
     print(ca.cost(Q0))
     # Trust region solver
+    print(ca.grad(Q0))
     trust_region_solver = SolverNewtonMt(
         ca.cost,
         ca.grad,
