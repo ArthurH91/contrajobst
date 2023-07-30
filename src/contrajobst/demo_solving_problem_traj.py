@@ -72,9 +72,6 @@ OBSTACLE.rotation = OBSTACLE_rotation
 WITH_DISPLAY = True
 WITH_PLOT = True
 WITH_NUMDIFF_SOLVE = False
-WITH_FMIN = False
-WARMSTART_IPOPT_WITH_TRS = False
-WITH_CASADI = False
 
 
 ###* LOADING THE ROBOT
@@ -175,9 +172,6 @@ if __name__ == "__main__":
         trust_region_solver._reguk_history,
     )
     Q_trs = trust_region_solver._xval_k
-
-    if WITH_FMIN:
-        Q_fmin = fmin(ca.cost, Q0)
 
     if WITH_NUMDIFF_SOLVE:
         # Trust region solver with finite difference
