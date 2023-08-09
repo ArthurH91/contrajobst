@@ -45,7 +45,7 @@ WEIGHT_Q0 = 0.001
 WEIGHT_DQ = 1e-2
 WEIGHT_OBS = 1e-0
 WEIGHT_TERM_POS = 4
-MAX_ITER = 100
+MAX_ITER = 200
 
 # * Generate a reachable target
 TARGET = pin.SE3.Identity()
@@ -54,6 +54,7 @@ TARGET.translation = np.array([-0.25, 0, 0.8])
 # * BOOLEANS FOR OPTIONS
 WITH_DISPLAY = True
 WITH_PLOT = False
+WITH_WARMSTART = True
 
 ###* LOADING THE ROBOT
 pinocchio_model_dir = join(dirname(dirname(str(abspath(__file__)))), "models")
@@ -130,11 +131,78 @@ if __name__ == "__main__":
             WEIGHT_TERM=WEIGHT_TERM_POS,
         )
         LM_solver = SolverNewtonMt(
-            ca.cost, ca.grad, ca.hess, max_iter=MAX_ITER, callback=None, verbose=True
+            ca.cost,
+            ca.grad,
+            ca.hess,
+            max_iter=MAX_ITER,
+            callback=None,
+            verbose=True,
+            eps=1e-6,
         )
         LM_solver(Q0)
         Q_min = LM_solver._xval_k
         Q_list[T * i * rmodel.nq : T * (i + 1) * rmodel.nq] = Q_min
+
+        Q0 = Q_min
+
+        i += 1
+
+    Q0 = np.concatenate([INITIAL_CONFIG] * (T))
+    Q_list_reversed = np.zeros(len(theta_list) * T * rmodel.nq)
+    i = 0  # for filling Q_list
+
+    for theta in np.flip(theta_list):
+        print(f"theta = {theta}")
+
+        # * Generate a reachable obstacle
+        OBSTACLE_translation = TARGET.translation / 2 + [
+            0.2 + theta,
+            0 + theta,
+            1.0 + theta,
+        ]
+        rotation = np.identity(3)
+        rotation[1, 1] = 0
+        rotation[2, 2] = 0
+        rotation[1, 2] = -1
+        rotation[2, 1] = 1
+        OBSTACLE_rotation = rotation
+        OBSTACLE = TARGET.copy()
+        OBSTACLE.translation = OBSTACLE_translation
+        OBSTACLE.rotation = OBSTACLE_rotation
+
+        # Creating the QP
+        ca = CollisionAvoidance(
+            rmodel,
+            rdata,
+            cmodel,
+            cdata,
+            q0=INITIAL_CONFIG,
+            TARGET=TARGET,
+            TARGET_SHAPE=TARGET_SHAPE,
+            OBSTACLE=OBSTACLE,
+            OBSTACLE_SHAPE=OBSTACLE_SHAPE,
+            eps_collision_avoidance=1e-5,
+            T=T,
+            WEIGHT_Q0=WEIGHT_Q0,
+            WEIGHT_DQ=WEIGHT_DQ,
+            WEIGHT_OBS=WEIGHT_OBS,
+            WEIGHT_TERM=WEIGHT_TERM_POS,
+        )
+        LM_solver = SolverNewtonMt(
+            ca.cost,
+            ca.grad,
+            ca.hess,
+            max_iter=MAX_ITER,
+            callback=None,
+            verbose=True,
+            eps=1e-6,
+        )
+        LM_solver(Q0)
+        Q_min = LM_solver._xval_k
+        Q_list_reversed[T * i * rmodel.nq : T * (i + 1) * rmodel.nq] = Q_min
+
+        Q0 = Q_min
+
         i += 1
     # Generating the meshcat visualizer
     MeshcatVis = MeshcatWrapper()
@@ -155,7 +223,10 @@ if __name__ == "__main__":
         print(f"press enter for displaying the {k}-th trajectory where theta = {theta}")
         input()
         Q = Q_list[T * rmodel.nq * k : T * rmodel.nq * (k + 1)]
-
+        if k > 0:
+            Q_reversed = Q_list_reversed[-T * rmodel.nq * (k + 1) : -T * rmodel.nq * k]
+        else:
+            Q_reversed = Q_list_reversed[-T * rmodel.nq * (k + 1) :]
         OBSTACLE_translation = TARGET.translation / 2 + [
             0.2 + theta,
             0 + theta,
@@ -173,3 +244,7 @@ if __name__ == "__main__":
 
         meshcatvis["obstacle"].set_transform(get_transform(OBSTACLE))
         display_last_traj(vis, Q, INITIAL_CONFIG, T)
+        print(
+            f"Now press enter for the {k} -th trajectory where theta = {theta} but with a different warm start"
+        )
+        display_last_traj(vis, Q_reversed, INITIAL_CONFIG, T)
