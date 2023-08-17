@@ -28,7 +28,7 @@ from os.path import dirname, join, abspath
 import numpy as np
 import pinocchio as pin
 import time
-from scipy.optimize import fmin
+from scipy import optimize
 import matplotlib.pyplot as plt
 import hppfcl
 
@@ -54,7 +54,7 @@ MAX_ITER = 100
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
-TARGET.translation = np.array([-0.25, 0, 0.8])
+TARGET.translation = np.array([0, 0, 1])
 
 # Generate a reachable obstacle
 OBSTACLE_translation = TARGET.translation / 2 + [0.2, 0, 1.0]
@@ -72,6 +72,8 @@ OBSTACLE.rotation = OBSTACLE_rotation
 WITH_DISPLAY = True
 WITH_PLOT = True
 WITH_NUMDIFF_SOLVE = False
+WITH_DIFFCOL_FOR_TARGET = False
+WITH_FMIN = True
 
 
 ###* LOADING THE ROBOT
@@ -132,6 +134,7 @@ if __name__ == "__main__":
         WEIGHT_DQ=WEIGHT_DQ,
         WEIGHT_OBS=WEIGHT_OBS,
         WEIGHT_TERM=WEIGHT_TERM_POS,
+        WITH_DIFFCOL_FOR_TARGET=True,
     )
 
     # Generating the meshcat visualizer
@@ -173,6 +176,9 @@ if __name__ == "__main__":
     )
     Q_trs = trust_region_solver._xval_k
 
+    if WITH_FMIN:
+        Q_fmin = optimize.fmin_ncg(ca.cost, Q_trs, ca.grad, fhess=ca.hess)
+
     if WITH_NUMDIFF_SOLVE:
         # Trust region solver with finite difference
         trust_region_solver_nd = SolverNewtonMt(
@@ -200,6 +206,9 @@ if __name__ == "__main__":
         if WITH_NUMDIFF_SOLVE:
             print("Now the trajectory of the same method but with the num diff")
             display_last_traj(vis, Q_nd, INITIAL_CONFIG, T)
+        if WITH_FMIN:
+            print("Now the trajectory computed with fmin_ncg")
+            display_last_traj(vis, Q_fmin, INITIAL_CONFIG, T)
 
     if WITH_PLOT:
         plt.subplot(411)

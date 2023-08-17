@@ -56,6 +56,7 @@ class CollisionAvoidance:
         WEIGHT_DQ: float,
         WEIGHT_OBS: float,
         WEIGHT_TERM: float,
+        WITH_DIFFCOL_FOR_TARGET=True,
     ):
         """Class which computes the cost, the gradient and the hessian of the NLP for collision avoidance.
 
@@ -91,7 +92,10 @@ class CollisionAvoidance:
             Weight penalizing the collision with the obstacle.
         WEIGHT_TERM : float
             Weight penalizing the distance between the end effector and the target.
+        WITH_DIFFCOL_FOR_TARGET : bool, optional
+            , by default True
         """
+
         # Models of the robot
         self._rmodel = rmodel  # Robot Model of pinocchio
         self._cmodel = cmodel  # Collision Model of the robot
@@ -119,6 +123,9 @@ class CollisionAvoidance:
         self._OBSTACLE_SHAPE = OBSTACLE_SHAPE
         self._TARGET = TARGET
         self._TARGET_SHAPE = TARGET_SHAPE
+
+        # Booleans
+        self._WITH_DIFFCOL_FOR_TARGET = WITH_DIFFCOL_FOR_TARGET
 
         # Storing the IDs of the frame of the end effector
 
@@ -228,17 +235,22 @@ class CollisionAvoidance:
         self.endeff_Transform = self._rdata.oMf[self._EndeffID]
         self.endeff_Shape = self._cmodel.geometryObjects[self._EndeffID_geom].geometry
 
-        # Computing the distance between the target and the end effector
-        dist_endeff_target = pydiffcol.distance(
-            self.endeff_Shape,
-            self.endeff_Transform,
-            self._TARGET_SHAPE,
-            self._TARGET,
-            self._req,
-            self._res,
-        )
-
-        self._terminal_residual = (self._WEIGHT_TERM) * self._res.w
+        if self._WITH_DIFFCOL_FOR_TARGET:
+            # Computing the distance between the target and the end effector
+            dist_endeff_target = pydiffcol.distance(
+                self.endeff_Shape,
+                self.endeff_Transform,
+                self._TARGET_SHAPE,
+                self._TARGET,
+                self._req,
+                self._res,
+            )
+            self._terminal_residual = (self._WEIGHT_TERM) * self._res.w
+        else:
+            vect_dist_endeff_target = (
+                self.endeff_Transform.translation - self._TARGET.translation
+            )
+            self._terminal_residual = (self._WEIGHT_TERM) * vect_dist_endeff_target
 
         ###* TOTAL RESIDUAL
         self._residual = np.concatenate(
@@ -404,38 +416,45 @@ class CollisionAvoidance:
         # Computing the jacobians in pinocchio
         pin.computeJointJacobians(self._rmodel, self._rdata, q_t)
 
-        # Computing the distance from the end effector to the target
-        dist_endeff_target = pydiffcol.distance(
-            self.endeff_Shape,
-            self.endeff_Transform,
-            self._TARGET_SHAPE,
-            self._TARGET,
-            self._req,
-            self._res,
-        )
+        if self._WITH_DIFFCOL_FOR_TARGET:
+            # Computing the distance from the end effector to the target
+            dist_endeff_target = pydiffcol.distance(
+                self.endeff_Shape,
+                self.endeff_Transform,
+                self._TARGET_SHAPE,
+                self._TARGET,
+                self._req,
+                self._res,
+            )
 
-        # Computing the distance derivatives
-        _ = pydiffcol.distance_derivatives(
-            self.endeff_Shape,
-            self.endeff_Transform,
-            self._OBSTACLE_SHAPE,
-            self._OBSTACLE,
-            self._req,
-            self._res,
-        )
+            # Computing the distance derivatives
+            _ = pydiffcol.distance_derivatives(
+                self.endeff_Shape,
+                self.endeff_Transform,
+                self._OBSTACLE_SHAPE,
+                self._OBSTACLE,
+                self._req,
+                self._res,
+            )
 
-        # # Getting the frame jacobian from the geometry object in the LOCAL reference frame
-        jacobian = pin.computeFrameJacobian(
-            self._rmodel,
-            self._rdata,
-            q_t,
-            self._Endeff_parent_frame,
-            pin.LOCAL,
-        )
+            # # Getting the frame jacobian from the geometry object in the LOCAL reference frame
+            jacobian = pin.computeFrameJacobian(
+                self._rmodel,
+                self._rdata,
+                q_t,
+                self._Endeff_parent_frame,
+                pin.LOCAL,
+            )
 
-        self._derivative_residual[-3:, -7:] = (
-            self._WEIGHT_TERM * (jacobian.T @ self._res.dw_dq1.T).T
-        )
+            self._derivative_residual[-3:, -7:] = (
+                self._WEIGHT_TERM * (jacobian.T @ self._res.dw_dq1.T).T
+            )
+        else:
+            J = pin.getFrameJacobian(
+                self._rmodel, self._rdata, self._EndeffID, pin.LOCAL_WORLD_ALIGNED
+            )
+            self._derivative_terminal_residual = self._WEIGHT_TERM * J[:3]
+            self._derivative_residual[-3:, -7:] = self._derivative_terminal_residual
 
         return self._derivative_residual.T @ self._residual
 

@@ -46,6 +46,7 @@ WEIGHT_DQ = 1e-2
 WEIGHT_OBS = 1e-0
 WEIGHT_TERM_POS = 4
 MAX_ITER = 200
+WITH_DIFFCOL_FOR_TARGET = False
 
 # * Generate a reachable target
 TARGET = pin.SE3.Identity()
