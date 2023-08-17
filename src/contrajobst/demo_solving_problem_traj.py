@@ -177,7 +177,8 @@ if __name__ == "__main__":
     Q_trs = trust_region_solver._xval_k
 
     if WITH_FMIN:
-        Q_fmin = optimize.fmin_ncg(ca.cost, Q_trs, ca.grad, fhess=ca.hess)
+        Q_fmin = optimize.fmin_ncg(ca.cost, Q0, ca.grad, fhess=ca.hess)
+        # Q_fmin = optimize.fmin_ncg(ca.cost, Q_trs, ca.grad, fhess=ca.hess) #! WARM START
 
     if WITH_NUMDIFF_SOLVE:
         # Trust region solver with finite difference
