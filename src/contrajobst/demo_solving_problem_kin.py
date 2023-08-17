@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import time
 import numpy as np
 import hppfcl
+from scipy import optimize
 
 from wrapper_meshcat import MeshcatWrapper
 from wrapper_robot import RobotWrapper
@@ -14,6 +15,7 @@ from utils import generate_reachable_target, numdiff
 
 
 WITH_NUMDIFF = False
+WITH_FMIN = True
 
 ###* TARGET
 # Generate a reachable target
@@ -78,7 +80,7 @@ if __name__ == "__main__":
 
     # Generating the meshcat visualizer
     MeshcatVis = MeshcatWrapper()
-    vis = MeshcatVis.visualize(
+    vis, vis_pin = MeshcatVis.visualize(
         TARGET,
         OBSTACLE=OBSTACLE,
         obstacle_type="sphere",
@@ -128,3 +130,8 @@ if __name__ == "__main__":
             max_iter=100,
         )
         res = trust_region_solver(q0)
+
+    if WITH_FMIN:
+        q_fmin = optimize.fmin_ncg(
+            QP.cost, q0, QP.grad, fhess=QP.hessian, callback=callback
+        )
