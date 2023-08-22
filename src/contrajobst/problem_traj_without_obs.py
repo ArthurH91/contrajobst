@@ -85,10 +85,12 @@ class NLP_without_obs:
         self._weight_dq = weight_dq
         self._weight_term_pos = weight_term_pos
 
+        self._nq = self._rmodel.nq
+
         # Storing the IDs of the frame of the end effector
 
-        self._EndeffID = self._rmodel.getFrameId("panda2_leftfinger")
-        self._EndeffID_geom = self._gmodel.getGeometryId("panda2_leftfinger_0")
+        self._EndeffID = self._rmodel.getFrameId("panda2_joint7")
+        self._EndeffID_geom = self._gmodel.getGeometryId("panda2_link7_sc_5")
         assert self._EndeffID_geom < len(self._gmodel.geometryObjects)
         assert self._EndeffID < len(self._rmodel.frames)
 
@@ -119,8 +121,17 @@ class NLP_without_obs:
 
         ###* RUNNING RESIDUAL
         ### Running residuals are computed by diffenciating between q_th and q_th +1
+        # self._principal_residual = np.zeros(self._rmodel.nq * (self._T))
+        # for iter in range(1, self._T):
+        #     self._principal_residual[
+        #         (iter - 1) * self._rmodel.nq : iter * self._rmodel.nq
+        #     ] = (
+        #         get_difference_between_q_iter(Q, iter, self._rmodel.nq)
+        #         * self._weight_dq
+        #     )
+
         self._principal_residual = (
-            get_difference_between_q_iter(Q, 0, self._rmodel.nq) * self._weight_dq
+            get_difference_between_q_iter(Q, 1, self._rmodel.nq) * self._weight_dq
         )
         for iter in range(1, self._T):
             self._principal_residual = np.concatenate(
@@ -208,37 +219,17 @@ class NLP_without_obs:
 
         # Computing the derivative of the principal residual
         nq, T = self._rmodel.nq, self._T
-        J_principal = np.zeros((T * nq, (T + 1) * nq))
-        np.fill_diagonal(J_principal, -self._weight_dq)
-        np.fill_diagonal(J_principal[:, nq:], self._weight_dq)
+        J = np.zeros((T * nq, (T + 1) * nq))
+        np.fill_diagonal(J, -self._weight_dq)
+        np.fill_diagonal(J[:, nq:], self._weight_dq)
 
-        self._derivative_principal_residual = J_principal
+        self._derivative_principal_residual = J
 
         # Computing the derivative of the terminal residual
-
         q_terminal = get_q_iter_from_Q(self._Q, self._T, self._rmodel.nq)
-
-        # Computing the jacobians in pinocchio
         pin.computeJointJacobians(self._rmodel, self._rdata, q_terminal)
-
-        # Computing the derivatives of the distance
-        _ = pydiffcol.distance_derivatives(
-            self.endeff_Shape,
-            self.endeff_Transform,
-            self._target_shape,
-            self._target,
-            self._req,
-            self._res,
-        )
-
-        # Getting the frame jacobian from the end effector in the LOCAL reference frame
-        jacobian = pin.computeFrameJacobian(
-            self._rmodel, self._rdata, q_terminal, self._EndeffID, pin.LOCAL
-        )
-
-        # The jacobian here is the multiplication of the jacobian of the end effector and the jacobian of the distance between the end effector and the target
-        J = jacobian.T @ self._res.dw_dq1.T
-        self._derivative_terminal_residual = self._weight_term_pos * J.T
+        J = pin.getFrameJacobian(self._rmodel, self._rdata, self._EndeffID, pin.LOCAL)
+        self._derivative_terminal_residual = self._weight_term_pos * J[:3]
 
         # Putting them all together
         T, nq = self._T, self._rmodel.nq
@@ -264,9 +255,6 @@ class NLP_without_obs:
 
         self.gradval = self._derivative_residual.T @ self._residual
 
-        gradval_numdiff = self.grad_numdiff(Q)
-        # print(f"grad val : {np.linalg.norm(self.gradval)} \n grad val numdiff : {np.linalg.norm(gradval_numdiff)}")
-        # assert np.linalg.norm(self.gradval - gradval_numdiff, np.inf) < 1e-4
         return self.gradval
 
     def hess(self, Q: np.ndarray):
