@@ -40,11 +40,11 @@ from utils import display_last_traj, numdiff
 
 
 # ### HYPERPARMS
-T = 4
+T = 10
 WEIGHT_Q0 = 0.001
-WEIGHT_DQ = 1e-5
-WEIGHT_OBS = 0
-WEIGHT_TERM_POS = 4
+WEIGHT_DQ = 1e-3
+WEIGHT_OBS = 5
+WEIGHT_TERM_POS = 1
 MAX_ITER = 1000
 
 
@@ -53,7 +53,7 @@ TARGET = pin.SE3.Identity()
 TARGET.translation = np.array([0, 0, 1])
 
 # Generate a reachable obstacle
-OBSTACLE_translation = TARGET.translation / 2 + [0.2, 0, 1.0]
+OBSTACLE_translation = np.array([0.2, 0, 1.5])
 rotation = np.identity(3)
 rotation[1, 1] = 0
 rotation[2, 2] = 0
@@ -138,3 +138,30 @@ if __name__ == "__main__":
         f"NLP._initial_cost = {NLP._initial_cost}, running cost = {NLP._principal_cost}, terminal cost = {NLP._terminal_cost}, obstacle cost = {NLP._obstacle_residual.shape}"
     )
     print(NLP._residual)
+
+    print(NLP.grad(Q0).shape)
+    print(NLP.hess(Q0))
+
+    # Trust region solver
+    trust_region_solver = SolverNewtonMt(
+        NLP.cost,
+        NLP.grad,
+        NLP.hess,
+        max_iter=MAX_ITER,
+        callback=None,
+        verbose=True,
+    )
+
+    trust_region_solver(Q0)
+    list_fval_mt, list_gradfkval_mt, list_alphak_mt, list_reguk = (
+        trust_region_solver._fval_history,
+        trust_region_solver._gradfval_history,
+        trust_region_solver._alphak_history,
+        trust_region_solver._reguk_history,
+    )
+    Q_trs = trust_region_solver._xval_k
+
+    print(
+        "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
+    )
+    display_last_traj(vis, Q_trs, INITIAL_CONFIG, T + 1)

@@ -52,7 +52,7 @@ class NLP_without_obs:
         WEIGHT_TERM: float,
         WEIGHT_OBS: float,
         WITH_DIFFCOL_FOR_TARGET=True,
-        eps_collision_avoidance=1e-5,
+        eps_collision_avoidance=1e-2,
     ):
         """Class which computes the cost, the gradient and the hessian of the NLP for collision avoidance.
 
@@ -240,9 +240,10 @@ class NLP_without_obs:
                         obstacle_residual_t_for_each_shape = self._WEIGHT_OBS * (
                             self._res.w
                         )
-
+                        # print("oula attention")
                     # Adding the residual to the list of residuals
                     obstacle_residuals_list.append(obstacle_residual_t_for_each_shape)
+                    # print(obstacle_residual_t_for_each_shape)
 
         self._obstacle_residual = np.zeros(
             (len(obstacle_residuals_list) * len(obstacle_residual_t_for_each_shape),)
@@ -309,10 +310,10 @@ class NLP_without_obs:
             Array of shape (T*rmodel.nq + 3) in which the values of the gradient of the cost function are computed.
         """
 
-        ### COST AND RESIDUALS
+        ###* COMPUTING COST AND RESIDUALS
         self.cost(Q)
 
-        ### DERIVATIVES OF THE RESIDUALS
+        ###* DERIVATIVES OF THE PRINCIPAL, INITIAL & TERMINAL RESIDUALS
 
         # Computing the derivative of the initial residuals
         self._derivative_initial_residual = np.diag([self._WEIGHT_Q0] * self._rmodel.nq)
@@ -329,29 +330,120 @@ class NLP_without_obs:
         q_terminal = get_q_iter_from_Q(self._Q, self._T, self._rmodel.nq)
         pin.computeJointJacobians(self._rmodel, self._rdata, q_terminal)
         J = pin.getFrameJacobian(self._rmodel, self._rdata, self._EndeffID, pin.LOCAL)
-        self._derivative_terminal_residual = self._weight_term_pos * J[:3]
+        self._derivative_terminal_residual = self._WEIGHT_TERM * J[:3]
 
         # Putting them all together
         T, nq = self._T, self._rmodel.nq
 
-        self._derivative_residual = np.zeros(
+        self._derivative_residual_first_part = np.zeros(
             [(self._T + 1) * self._rmodel.nq + 3, (self._T + 1) * self._rmodel.nq]
         )
 
         # Computing the initial residuals
-        self._derivative_residual[
+        self._derivative_residual_first_part[
             : self._rmodel.nq, : self._rmodel.nq
         ] = self._derivative_initial_residual
 
         # Computing the principal residuals
-        self._derivative_residual[
+        self._derivative_residual_first_part[
             self._rmodel.nq : -3, :
         ] = self._derivative_principal_residual
 
         # Computing the terminal residuals
-        self._derivative_residual[
+        self._derivative_residual_first_part[
             -3:, -self._rmodel.nq :
         ] = self._derivative_terminal_residual
+
+        ###* COMPUTING THE DERIVATIVES OF THE OBSTACLE RESIDUALS
+
+        # Creating an array to store all the derivatives of the obstacles
+        self._derivative_residual_sec_part = np.zeros(
+            [len(self._obstacle_residual), (self._T + 1) * self._rmodel.nq]
+        )
+
+        # Going through all the configurations
+        for t in range(1, self._T):
+            # Obtaining the current configuration
+            q_t = get_q_iter_from_Q(Q, t, self._nq)
+
+            # Updating the pinocchio models
+            pin.framesForwardKinematics(self._rmodel, self._rdata, q_t)
+            pin.updateGeometryPlacements(
+                self._rmodel, self._rdata, self._cmodel, self._cdata
+            )
+            pin.computeAllTerms(
+                self._rmodel, self._rdata, q_t, np.zeros(self._rmodel.nv)
+            )
+
+            iter = 0  # Counter for each robot shape
+            # For each configuration, going through all the geometry objects.
+            for oMg, geometry_objects in zip(
+                self._cdata.oMg, self._cmodel.geometryObjects
+            ):
+                # Only selecting the shapes of the robot and not the environement
+                if not isinstance(geometry_objects.geometry, hppfcl.Box):
+                    # Computing the distance between the given part of the robot and the obstacle
+
+                    dist = pydiffcol.distance(
+                        geometry_objects.geometry,
+                        oMg,
+                        self._OBSTACLE_SHAPE,
+                        self._OBSTACLE,
+                        self._req,
+                        self._res,
+                    )
+                    # If the given part of the robot is too close to the obstacle, a residual is added. 0 Otherwise
+                    if dist < self._eps_collision_avoidance:
+                        # * Computing the derivative of the obstacle residual
+                        # print("oulaaaaa")
+                        # Computing the jacobians in pinocchio
+                        pin.computeJointJacobians(self._rmodel, self._rdata, q_t)
+
+                        # Computing the derivatives of the distance
+                        _ = pydiffcol.distance_derivatives(
+                            geometry_objects.geometry,
+                            oMg,
+                            self._OBSTACLE_SHAPE,
+                            self._OBSTACLE,
+                            self._req,
+                            self._res,
+                        )
+
+                        # Getting the frame jacobian from the geometry object in the LOCAL reference frame
+                        jacobian = pin.computeFrameJacobian(
+                            self._rmodel,
+                            self._rdata,
+                            q_t,
+                            geometry_objects.parentFrame,
+                            pin.LOCAL,
+                        )
+
+                        # The jacobian here is the multiplication of the jacobian of the end effector and the jacobian of the distance between the geometry object and the obstacle
+                        J = (jacobian.T @ self._res.dw_dq1.T).T
+
+                    else:
+                        J = np.zeros((3, self._nq))
+
+                    self._derivative_residual_sec_part[
+                        iter * 3 : (iter + 1) * 3, t * nq : (t + 1) * nq
+                    ] = (J * self._WEIGHT_OBS)
+
+                    iter += 1
+
+        # Creating the derivative residual array which is the concatenation of the 2 derivative residual arrays.
+        self._derivative_residual = np.zeros(
+            (
+                (self._T + 1) * self._rmodel.nq + 3 + len(self._obstacle_residual),
+                (self._T + 1) * self._rmodel.nq,
+            )
+        )
+
+        self._derivative_residual[
+            : (self._T + 1) * self._rmodel.nq + 3, :
+        ] = self._derivative_residual_first_part
+        self._derivative_residual[
+            (self._T + 1) * self._rmodel.nq + 3 :, :
+        ] = self._derivative_residual_sec_part
 
         self.gradval = self._derivative_residual.T @ self._residual
 
