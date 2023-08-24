@@ -39,18 +39,18 @@ from solver_newton_mt import SolverNewtonMt
 from utils import display_last_traj, numdiff
 
 
-SEED = abs(int(np.sin(time.time() % 6.28) * 1000))
-print(f"SEED = {SEED}")
-SEED = 783
+# SEED = abs(int(np.sin(time.time() % 6.28) * 1000))
+# print(f"SEED = {SEED}")
+# SEED = 783
 
 
 # ### HYPERPARMS
-T = 5
+T = 10
 WEIGHT_Q0 = 0.001
-WEIGHT_DQ = 1e-2
-WEIGHT_OBS = 1e-0
+WEIGHT_DQ = 1e-5
+WEIGHT_OBS = 0
 WEIGHT_TERM_POS = 4
-MAX_ITER = 100
+MAX_ITER = 1000
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
@@ -73,7 +73,7 @@ WITH_DISPLAY = True
 WITH_PLOT = True
 WITH_NUMDIFF_SOLVE = False
 WITH_DIFFCOL_FOR_TARGET = False
-WITH_FMIN = True
+WITH_FMIN = False
 
 
 ###* LOADING THE ROBOT
@@ -96,7 +96,7 @@ def hess_numdiff(Q: np.ndarray):
 
 
 if __name__ == "__main__":
-    pin.seed(SEED)
+    # pin.seed(SEED)
 
     # Creation of the robot
 
@@ -111,8 +111,8 @@ if __name__ == "__main__":
     cdata = cmodel.createData()
 
     # Initial configuration of the robot
-    INITIAL_CONFIG = pin.randomConfiguration(rmodel)
-
+    # INITIAL_CONFIG = pin.randomConfiguration(rmodel)
+    INITIAL_CONFIG = pin.neutral(rmodel)
     # Creating the HPPFCL Shapes for the obstacles and the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
     # OBSTACLE_SHAPE = hppfcl.Box(5e-1, 5e-1, 5e-2)
@@ -155,9 +155,7 @@ if __name__ == "__main__":
     # Initial trajectory
     Q0 = np.concatenate([INITIAL_CONFIG] * (T))
 
-    print(ca.cost(Q0))
     # Trust region solver
-    print(ca.grad(Q0))
     trust_region_solver = SolverNewtonMt(
         ca.cost,
         ca.grad,

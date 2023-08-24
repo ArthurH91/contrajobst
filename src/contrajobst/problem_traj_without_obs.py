@@ -121,6 +121,7 @@ class NLP_without_obs:
 
         ###* RUNNING RESIDUAL
         ### Running residuals are computed by diffenciating between q_th and q_th +1
+
         # self._principal_residual = np.zeros(self._rmodel.nq * (self._T))
         # for iter in range(1, self._T):
         #     self._principal_residual[
@@ -133,6 +134,8 @@ class NLP_without_obs:
         self._principal_residual = (
             get_difference_between_q_iter(Q, 1, self._rmodel.nq) * self._weight_dq
         )
+
+        # Differenciating all the configurations
         for iter in range(1, self._T):
             self._principal_residual = np.concatenate(
                 (
