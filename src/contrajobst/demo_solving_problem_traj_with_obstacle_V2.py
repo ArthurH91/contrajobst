@@ -44,7 +44,7 @@ T = 10
 WEIGHT_Q0 = 0.001
 WEIGHT_DQ = 1e-3
 WEIGHT_OBS = 5
-WEIGHT_TERM_POS = 1
+WEIGHT_TERM_POS = 3
 MAX_ITER = 1000
 
 
@@ -133,15 +133,6 @@ if __name__ == "__main__":
     # Initial trajectory
     Q0 = np.concatenate([INITIAL_CONFIG] * (T + 1))
 
-    print(NLP.cost(Q0))
-    print(
-        f"NLP._initial_cost = {NLP._initial_cost}, running cost = {NLP._principal_cost}, terminal cost = {NLP._terminal_cost}, obstacle cost = {NLP._obstacle_residual.shape}"
-    )
-    print(NLP._residual)
-
-    print(NLP.grad(Q0).shape)
-    print(NLP.hess(Q0))
-
     # Trust region solver
     trust_region_solver = SolverNewtonMt(
         NLP.cost,
@@ -150,6 +141,7 @@ if __name__ == "__main__":
         max_iter=MAX_ITER,
         callback=None,
         verbose=True,
+        eps=2e-6,
     )
 
     trust_region_solver(Q0)
@@ -165,3 +157,10 @@ if __name__ == "__main__":
         "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
     )
     display_last_traj(vis, Q_trs, INITIAL_CONFIG, T + 1)
+
+    while True:
+        print("replay?")
+        print(
+            "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
+        )
+        display_last_traj(vis, Q_trs, INITIAL_CONFIG, T + 1)
