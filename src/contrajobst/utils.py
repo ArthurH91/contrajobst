@@ -37,7 +37,7 @@ def get_q_iter_from_Q(Q: np.ndarray, iter: int, nq: int):
 
 
 def get_difference_between_q_iter(Q: np.ndarray, iter: int, nq: int):
-    """Returns the difference between the q_iter+1 and q_iter in the array self.Q
+    """Returns the difference between the q_iter and q_iter-1 in the array self.Q
 
     Parameters
     ----------
@@ -53,6 +53,25 @@ def get_difference_between_q_iter(Q: np.ndarray, iter: int, nq: int):
 
     """
     return get_q_iter_from_Q(Q, iter, nq) - get_q_iter_from_Q(Q, iter - 1, nq)
+
+
+def get_difference_between_q_iter_sup(Q: np.ndarray, iter: int, nq: int):
+    """Returns the difference between the q_iter + 1 and q_iter in the array self.Q
+
+    Parameters
+    ----------
+    Q : np.ndarray
+        Optimization vector.
+    iter : int
+        Index of the q_iter desired.
+    nq : int
+        Length of a configuration vector.
+
+    Returns:
+        q_iter+1 - q_iter (np.ndarray): Difference of the arrays of the configuration of the robot at the iter-th and ither +1 -th steps.
+
+    """
+    return get_q_iter_from_Q(Q, iter + 1, nq) - get_q_iter_from_Q(Q, iter, nq)
 
 
 def display_last_traj(vis, Q: np.ndarray, q0: np.ndarray, T: int, dt=None):
