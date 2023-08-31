@@ -36,16 +36,17 @@ from wrapper_robot import RobotWrapper
 from wrapper_meshcat import MeshcatWrapper
 from problem_traj_obs_with_obstacle_v2 import NLP_without_obs
 from solver_newton_mt import SolverNewtonMt
-from utils import display_last_traj, numdiff
+from utils import display_last_traj, numdiff, get_difference_between_q_iter
 
 
 # ### HYPERPARMS
 T = 10
 WEIGHT_Q0 = 0.001
 WEIGHT_DQ = 1e-3
-WEIGHT_OBS = 5
+WEIGHT_OBS = 10
 WEIGHT_TERM_POS = 3
-MAX_ITER = 1000
+MAX_ITER = 300
+EPS_SOLVER = 2e-6
 
 
 # Generate a reachable target
@@ -105,7 +106,7 @@ if __name__ == "__main__":
         TARGET_SHAPE=TARGET_SHAPE,
         OBSTACLE=OBSTACLE,
         OBSTACLE_SHAPE=OBSTACLE_SHAPE,
-        eps_collision_avoidance=1e-5,
+        eps_collision_avoidance=0,
         T=T,
         WEIGHT_Q0=WEIGHT_Q0,
         WEIGHT_DQ=WEIGHT_DQ,
@@ -131,7 +132,7 @@ if __name__ == "__main__":
     vis.display(INITIAL_CONFIG)
 
     # Initial trajectory
-    Q0 = np.concatenate([INITIAL_CONFIG] * (T + 1))
+    Q0 = np.concatenate([INITIAL_CONFIG] * (T))
 
     # Trust region solver
     trust_region_solver = SolverNewtonMt(
@@ -141,7 +142,8 @@ if __name__ == "__main__":
         max_iter=MAX_ITER,
         callback=None,
         verbose=True,
-        eps=2e-6,
+        eps=EPS_SOLVER,
+        bool_plot_results=True,
     )
 
     trust_region_solver(Q0)
@@ -153,14 +155,25 @@ if __name__ == "__main__":
     )
     Q_trs = trust_region_solver._xval_k
 
+    q_dot = []
+
+    for k in range(1, T):
+        q_dot.append(np.linalg.norm(get_difference_between_q_iter(Q_trs, k, rmodel.nq)))
+
+    plt.plot(q_dot)
+    plt.xlabel("Iterations")
+    plt.ylabel("Speed")
+    plt.title("Evolution of speed through iterations")
+    plt.show()
+
     print(
         "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
     )
-    display_last_traj(vis, Q_trs, INITIAL_CONFIG, T + 1)
+    display_last_traj(vis, Q_trs, INITIAL_CONFIG, T)
 
     while True:
         print("replay?")
         print(
             "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
         )
-        display_last_traj(vis, Q_trs, INITIAL_CONFIG, T + 1)
+        display_last_traj(vis, Q_trs, INITIAL_CONFIG, T)
