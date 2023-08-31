@@ -36,12 +36,16 @@ from wrapper_robot import RobotWrapper
 from wrapper_meshcat import MeshcatWrapper
 from problem_traj_without_obs import NLP_without_obs
 from solver_newton_mt import SolverNewtonMt
-from utils import display_last_traj, numdiff, get_transform
+from utils import (
+    display_last_traj,
+    get_difference_between_q_iter_sup,
+    get_q_iter_from_Q,
+)
 
 
 ###* HYPERPARMS
 
-MAX_ITER = 1000
+MAX_ITER = 3000
 
 T = 5
 WEIGHT_Q0 = 0.001
@@ -119,7 +123,9 @@ if __name__ == "__main__":
     # Displaying the initial configuration of the robot
     vis.display(INITIAL_CONFIG)
     # Initial trajectory
-    Q0 = np.concatenate([INITIAL_CONFIG] * (T + 1))
+    # Q0 = np.concatenate([INITIAL_CONFIG] * (T - 1))
+    Q0 = np.concatenate([INITIAL_CONFIG] * (T))
+    # Q0 = np.concatenate((Q0, pin.randomConfiguration(rmodel)))
 
     # Trust region solver
     trust_region_solver = SolverNewtonMt(
@@ -129,7 +135,7 @@ if __name__ == "__main__":
         max_iter=MAX_ITER,
         callback=None,
         verbose=True,
-        bool_plot_results=True,
+        bool_plot_results=False,
         eps=1e-5,
     )
 
@@ -142,7 +148,20 @@ if __name__ == "__main__":
     )
     Q_trs = trust_region_solver._xval_k
 
+    q_dot = []
+
+    for k in range(0, T - 1):
+        q_dot.append(
+            np.linalg.norm(get_difference_between_q_iter_sup(Q_trs, k, rmodel.nq))
+        )
+
+    plt.plot(q_dot)
+    plt.xlabel("Iterations")
+    plt.ylabel("Speed")
+    plt.title("Evolution of speed through iterations")
+    plt.show()
+
     print(
         "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
     )
-    display_last_traj(vis, Q_trs, INITIAL_CONFIG, T + 1)
+    display_last_traj(vis, Q_trs, INITIAL_CONFIG, T)

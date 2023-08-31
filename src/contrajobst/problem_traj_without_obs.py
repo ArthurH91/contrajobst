@@ -31,7 +31,7 @@ import hppfcl
 import pydiffcol
 
 from wrapper_robot import RobotWrapper
-from utils import get_q_iter_from_Q, get_difference_between_q_iter, numdiff
+from utils import get_q_iter_from_Q, get_difference_between_q_iter_sup, numdiff
 
 # This class is for defining the optimization problem and computing the cost function, its gradient and hessian.
 
@@ -122,28 +122,13 @@ class NLP_without_obs:
         ###* RUNNING RESIDUAL
         ### Running residuals are computed by diffenciating between q_th and q_th +1
 
-        # self._principal_residual = np.zeros(self._rmodel.nq * (self._T))
-        # for iter in range(1, self._T):
-        #     self._principal_residual[
-        #         (iter - 1) * self._rmodel.nq : iter * self._rmodel.nq
-        #     ] = (
-        #         get_difference_between_q_iter(Q, iter, self._rmodel.nq)
-        #         * self._weight_dq
-        #     )
-
-        self._principal_residual = (
-            get_difference_between_q_iter(Q, 1, self._rmodel.nq) * self._weight_dq
-        )
-
-        # Differenciating all the configurations
-        for iter in range(1, self._T):
-            self._principal_residual = np.concatenate(
-                (
-                    self._principal_residual,
-                    get_difference_between_q_iter(Q, iter, self._rmodel.nq)
-                    * self._weight_dq,
-                ),
-                axis=None,
+        self._principal_residual = np.zeros(self._rmodel.nq * (self._T - 1))
+        for iter in range(0, self._T - 1):
+            self._principal_residual[
+                (iter) * self._rmodel.nq : (iter + 1) * self._rmodel.nq
+            ] = (
+                get_difference_between_q_iter_sup(Q, iter, self._rmodel.nq)
+                * self._weight_dq
             )
 
         ###* TERMINAL RESIDUAL
@@ -156,7 +141,7 @@ class NLP_without_obs:
         self._req.derivative_type = pydiffcol.DerivativeType.FirstOrderRS
 
         # Obtaining the last configuration of Q
-        q_last = get_q_iter_from_Q(self._Q, self._T, self._rmodel.nq)
+        q_last = get_q_iter_from_Q(self._Q, self._T - 1, self._rmodel.nq)
 
         # Forward kinematics of the robot at the configuration q.
         pin.framesForwardKinematics(self._rmodel, self._rdata, q_last)
@@ -222,23 +207,46 @@ class NLP_without_obs:
 
         # Computing the derivative of the principal residual
         nq, T = self._rmodel.nq, self._T
-        J = np.zeros((T * nq, (T + 1) * nq))
+        # J = np.zeros(((T + 1) * nq, (T + 1) * nq))
+        J = np.zeros(((T - 1) * nq, (T) * nq))
+
         np.fill_diagonal(J, -self._weight_dq)
         np.fill_diagonal(J[:, nq:], self._weight_dq)
 
         self._derivative_principal_residual = J
 
         # Computing the derivative of the terminal residual
-        q_terminal = get_q_iter_from_Q(self._Q, self._T, self._rmodel.nq)
+        q_terminal = get_q_iter_from_Q(self._Q, self._T - 1, self._rmodel.nq)
         pin.computeJointJacobians(self._rmodel, self._rdata, q_terminal)
-        J = pin.getFrameJacobian(self._rmodel, self._rdata, self._EndeffID, pin.LOCAL)
-        self._derivative_terminal_residual = self._weight_term_pos * J[:3]
+        jacobian = pin.getFrameJacobian(
+            self._rmodel, self._rdata, self._EndeffID, pin.LOCAL
+        )
+
+        dist = pydiffcol.distance(
+            self.endeff_Shape,
+            self.endeff_Transform,
+            self._target_shape,
+            self._target,
+            self._req,
+            self._res,
+        )
+        _ = pydiffcol.distance_derivatives(
+            self.endeff_Shape,
+            self.endeff_Transform,
+            self._target_shape,
+            self._target,
+            self._req,
+            self._res,
+        )
+
+        J = jacobian.T @ self._res.dw_dq1.T
+
+        self._derivative_terminal_residual = self._weight_term_pos * J.T
 
         # Putting them all together
-        T, nq = self._T, self._rmodel.nq
 
         self._derivative_residual = np.zeros(
-            [(self._T + 1) * self._rmodel.nq + 3, (self._T + 1) * self._rmodel.nq]
+            [(self._T) * self._rmodel.nq + 3, (self._T) * self._rmodel.nq]
         )
 
         # Computing the initial residuals
