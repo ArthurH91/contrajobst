@@ -41,7 +41,7 @@ from utils import (
 # This class is for defining the optimization problem and computing the cost function, its gradient and hessian.
 
 
-class NLP_without_obs:
+class NLP_with_obs:
     def __init__(
         self,
         rmodel: pin.Model,
@@ -56,7 +56,6 @@ class NLP_without_obs:
         WEIGHT_DQ: float,
         WEIGHT_TERM: float,
         WEIGHT_OBS: float,
-        WITH_DIFFCOL_FOR_TARGET=True,
         eps_collision_avoidance=0,
     ):
         """Class which computes the cost, the gradient and the hessian of the NLP for collision avoidance.
@@ -119,9 +118,6 @@ class NLP_without_obs:
         self._OBSTACLE_SHAPE = OBSTACLE_SHAPE
         self._TARGET = TARGET
         self._TARGET_SHAPE = TARGET_SHAPE
-
-        # Booleans
-        self._WITH_DIFFCOL_FOR_TARGET = WITH_DIFFCOL_FOR_TARGET
 
         # Storing the IDs of the frame of the end effector
 
@@ -202,10 +198,13 @@ class NLP_without_obs:
         self._terminal_residual = (self._WEIGHT_TERM) * self._res.w
 
         ###* OBSTACLE RESIDUAL
-
         obstacle_residuals_list = []
 
+        self._dist_min_obs_list = []
+        self._dist_max_obs_list = []
         for iter in range(1, self._T):
+            dist_obs_list_t = []
+
             # Obtaining the current configuration
             q_t = get_q_iter_from_Q(Q, iter, self._nq)
 
@@ -240,8 +239,13 @@ class NLP_without_obs:
                         obstacle_residual_t_for_each_shape = self._WEIGHT_OBS * (
                             self._res.w
                         )
+                    dist_obs_list_t.append(dist)
+
                     # Adding the residual to the list of residuals
                     obstacle_residuals_list.append(obstacle_residual_t_for_each_shape)
+
+            self._dist_max_obs_list.append(max(dist_obs_list_t))
+            self._dist_min_obs_list.append(min(dist_obs_list_t))
 
         self._obstacle_residual = np.zeros(
             (len(obstacle_residuals_list) * len(obstacle_residual_t_for_each_shape),)
@@ -308,50 +312,6 @@ class NLP_without_obs:
         gradient : np.ndarray
             Array of shape (T*rmodel.nq + 3) in which the values of the gradient of the cost function are computed.
         """
-
-        # ###* COMPUTING COST AND RESIDUALS
-        # self.cost(Q)
-
-        # ###* DERIVATIVES OF THE PRINCIPAL, INITIAL & TERMINAL RESIDUALS
-
-        # # Computing the derivative of the initial residuals
-        # self._derivative_initial_residual = np.diag([self._WEIGHT_Q0] * self._rmodel.nq)
-
-        # # Computing the derivative of the principal residual
-        # nq, T = self._rmodel.nq, self._T
-        # J = np.zeros((T * nq, (T + 1) * nq))
-        # np.fill_diagonal(J, -self._WEIGHT_DQ)
-        # np.fill_diagonal(J[:, nq:], self._WEIGHT_DQ)
-
-        # self._derivative_principal_residual = J
-
-        # # Computing the derivative of the terminal residual
-        # q_terminal = get_q_iter_from_Q(self._Q, self._T, self._rmodel.nq)
-        # pin.computeJointJacobians(self._rmodel, self._rdata, q_terminal)
-        # J = pin.getFrameJacobian(self._rmodel, self._rdata, self._EndeffID, pin.LOCAL)
-        # self._derivative_terminal_residual = self._WEIGHT_TERM * J[:3]
-
-        # # Putting them all together
-        # T, nq = self._T, self._rmodel.nq
-
-        # self._derivative_residual_first_part = np.zeros(
-        #     [(self._T + 1) * self._rmodel.nq + 3, (self._T + 1) * self._rmodel.nq]
-        # )
-
-        # # Computing the initial residuals
-        # self._derivative_residual_first_part[
-        #     : self._rmodel.nq, : self._rmodel.nq
-        # ] = self._derivative_initial_residual
-
-        # # Computing the principal residuals
-        # self._derivative_residual_first_part[
-        #     self._rmodel.nq : -3, :
-        # ] = self._derivative_principal_residual
-
-        # # Computing the terminal residuals
-        # self._derivative_residual_first_part[
-        #     -3:, -self._rmodel.nq :
-        # ] = self._derivative_terminal_residual
 
         ### COST AND RESIDUALS
         self.cost(Q)

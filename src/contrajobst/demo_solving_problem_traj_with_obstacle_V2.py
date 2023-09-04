@@ -34,20 +34,28 @@ import hppfcl
 
 from wrapper_robot import RobotWrapper
 from wrapper_meshcat import MeshcatWrapper
-from problem_traj_obs_with_obstacle_v2 import NLP_without_obs
+from problem_traj_obs_with_obstacle_v2 import NLP_with_obs
 from solver_newton_mt import SolverNewtonMt
-from utils import display_last_traj, numdiff, get_difference_between_q_iter
+from utils import (
+    display_last_traj,
+    numdiff,
+    get_difference_between_q_iter,
+    plot_end_effector_positions,
+)
 
 
 # ### HYPERPARMS
-T = 10
+T = 15
 WEIGHT_Q0 = 0.001
 WEIGHT_DQ = 1e-3
-WEIGHT_OBS = 10
+WEIGHT_OBS = 0
 WEIGHT_TERM_POS = 3
-MAX_ITER = 300
+MAX_ITER = 100
 EPS_SOLVER = 2e-6
 
+###* OPTIONS
+WITH_PLOTTING = False
+WITH_DISPLAY = True
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
@@ -98,7 +106,7 @@ if __name__ == "__main__":
     # OBSTACLE_SHAPE = hppfcl.Box(5e-1, 5e-1, 5e-2)
     OBSTACLE_SHAPE = hppfcl.Sphere(1e-1)
     # Creating the QP
-    NLP = NLP_without_obs(
+    NLP = NLP_with_obs(
         rmodel,
         cmodel,
         q0=INITIAL_CONFIG,
@@ -112,7 +120,6 @@ if __name__ == "__main__":
         WEIGHT_DQ=WEIGHT_DQ,
         WEIGHT_OBS=WEIGHT_OBS,
         WEIGHT_TERM=WEIGHT_TERM_POS,
-        WITH_DIFFCOL_FOR_TARGET=True,
     )
 
     # Generating the meshcat visualizer
@@ -143,7 +150,7 @@ if __name__ == "__main__":
         callback=None,
         verbose=True,
         eps=EPS_SOLVER,
-        bool_plot_results=True,
+        bool_plot_results=WITH_PLOTTING,
     )
 
     trust_region_solver(Q0)
@@ -155,25 +162,46 @@ if __name__ == "__main__":
     )
     Q_trs = trust_region_solver._xval_k
 
-    q_dot = []
+    if WITH_PLOTTING:
+        q_dot = []
 
-    for k in range(1, T):
-        q_dot.append(np.linalg.norm(get_difference_between_q_iter(Q_trs, k, rmodel.nq)))
+        for k in range(1, T):
+            q_dot.append(
+                np.linalg.norm(get_difference_between_q_iter(Q_trs, k, rmodel.nq))
+            )
 
-    plt.plot(q_dot)
-    plt.xlabel("Iterations")
-    plt.ylabel("Speed")
-    plt.title("Evolution of speed through iterations")
-    plt.show()
+        plt.figure()
+        plt.plot(q_dot, "-o")
+        plt.xlabel("Iterations")
+        plt.ylabel("Speed")
+        plt.title("Evolution of speed through iterations")
 
-    print(
-        "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
-    )
-    display_last_traj(vis, Q_trs, INITIAL_CONFIG, T)
+        plot_end_effector_positions(
+            rmodel, cmodel, rdata, Q_trs, T, rmodel.nq, TARGET, TARGET_SHAPE
+        )
 
-    while True:
-        print("replay?")
+        plt.figure()
+        plt.plot(NLP._dist_min_obs_list, "-o", label=" Distance min")
+        plt.plot(np.zeros(len(NLP._dist_min_obs_list)), label="Collision")
+        plt.ylabel("Distance (m)")
+        plt.xlabel("Iterations")
+        plt.legend()
+        plt.suptitle("Distance min of robot to obstacle")
+        plt.show()
+
+    if WITH_DISPLAY:
         print(
             "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
         )
         display_last_traj(vis, Q_trs, INITIAL_CONFIG, T)
+
+        while True:
+            print("replay?")
+            print(
+                "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
+            )
+            display_last_traj(vis, Q_trs, INITIAL_CONFIG, T)
+
+    ###* DEBUG
+
+    print(NLP._obstacle_cost)

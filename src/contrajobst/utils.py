@@ -3,6 +3,8 @@ import pinocchio as pin
 import numpy as np
 import time
 import copy
+import matplotlib.pyplot as plt
+import pydiffcol
 
 
 RED = np.array([249, 136, 126, 125]) / 255
@@ -189,6 +191,95 @@ def generate_reachable_target(
     if returnConfiguration:
         return rdata.oMf[fid].copy(), q_target
     return rdata.oMf[fid].copy()
+
+
+def plot_end_effector_positions(
+    rmodel: pin.Model,
+    cmodel: pin.Model,
+    rdata: pin.Data,
+    Q: np.ndarray,
+    T: int,
+    nq,
+    TARGET: pin.SE3,
+    TARGET_SHAPE: hppfcl.ShapeBase,
+):
+    px_l, py_l, pz_l = [], [], []
+    resx_l, resy_l, resz_l = [], [], []
+
+    for t in range(T):
+        q_t = get_q_iter_from_Q(Q, t, nq)
+        req = pydiffcol.DistanceRequest()
+        res = pydiffcol.DistanceResult()
+        pin.framesForwardKinematics(rmodel, rdata, q_t)
+
+        endeff_Shape = cmodel.geometryObjects[
+            cmodel.getGeometryId("panda2_link7_sc_5")
+        ].geometry
+        endeff_Transform = rdata.oMf[rmodel.getFrameId("panda2_joint7")]
+
+        dist_endeff_target = pydiffcol.distance(
+            endeff_Shape,
+            endeff_Transform,
+            TARGET_SHAPE,
+            TARGET,
+            req,
+            res,
+        )
+
+        px, py, pz = endeff_Transform.translation
+
+        px_l.append(px)
+        py_l.append(py)
+        pz_l.append(pz)
+
+        resx_l.append(res.w[0])
+        resy_l.append(res.w[1])
+        resz_l.append(res.w[2])
+
+    px_t = np.ones(len(px_l)) * TARGET.translation[0]
+    py_t = np.ones(len(py_l)) * TARGET.translation[1]
+    pz_t = np.ones(len(pz_l)) * TARGET.translation[2]
+
+    goal = np.zeros((len(resx_l)))
+    plt.figure()
+    plt.subplot(311)
+    plt.plot(px_l, "-o", label="End effector pose")
+    plt.plot(px_t, "-", label="Target position")
+    plt.legend()
+    plt.ylabel("px (m)")
+    plt.subplot(312)
+    plt.plot(py_l, "-o", label="End effector pose")
+    plt.plot(py_t, "-", label="Target position")
+    plt.ylabel("py (m)")
+    plt.legend()
+    plt.subplot(313)
+    plt.plot(pz_l, "-o", label="End effector pose")
+    plt.plot(pz_t, "-", label="Target position")
+    plt.ylabel("pz (m)")
+    plt.xlabel("Iterations")
+    plt.suptitle("3D Position of the end effector through iterations")
+    plt.legend()
+
+    plt.figure()
+    plt.subplot(311)
+    plt.plot(resx_l, "-o", label="End effector pose")
+    plt.plot(goal, label="Goal")
+    plt.legend()
+    plt.ylabel("px (m)")
+    plt.subplot(312)
+    plt.plot(resy_l, "-o", label="End effector pose")
+    plt.plot(goal, label="Goal")
+    plt.legend()
+    plt.ylabel("py (m)")
+    plt.subplot(313)
+    plt.plot(resz_l, "-o", label="End effector pose")
+    plt.plot(goal, label="Goal")
+    plt.legend()
+    plt.ylabel("pz (m)")
+    plt.xlabel("Iterations")
+    plt.suptitle(
+        "Vector separating witness points on the target and the end effector through iterations"
+    )
 
 
 if __name__ == "__main__":
