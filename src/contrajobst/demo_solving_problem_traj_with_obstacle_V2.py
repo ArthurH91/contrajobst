@@ -24,11 +24,10 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from os.path import dirname, join, abspath
+import json
 
 import numpy as np
 import pinocchio as pin
-import time
-from scipy import optimize
 import matplotlib.pyplot as plt
 import hppfcl
 
@@ -38,7 +37,6 @@ from problem_traj_obs_with_obstacle_v2 import NLP_with_obs
 from solver_newton_mt import SolverNewtonMt
 from utils import (
     display_last_traj,
-    numdiff,
     get_difference_between_q_iter,
     plot_end_effector_positions,
 )
@@ -48,15 +46,15 @@ from utils import (
 T = 15
 WEIGHT_Q0 = 0.001
 WEIGHT_DQ = 1e-3
-WEIGHT_OBS = 0
+WEIGHT_OBS = 10
 WEIGHT_TERM_POS = 3
-MAX_ITER = 100
+MAX_ITER = 200
 EPS_SOLVER = 2e-6
 
 ###* OPTIONS
 WITH_PLOTTING = False
-WITH_DISPLAY = True
-
+WITH_DISPLAY = False
+SAVE_RESULTS = False
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
 TARGET.translation = np.array([0, 0, 1])
@@ -99,11 +97,9 @@ if __name__ == "__main__":
     cdata = cmodel.createData()
 
     # Initial configuration of the robot
-    # INITIAL_CONFIG = pin.randomConfiguration(rmodel)
     INITIAL_CONFIG = pin.neutral(rmodel)
     # Creating the HPPFCL Shapes for the obstacles and the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
-    # OBSTACLE_SHAPE = hppfcl.Box(5e-1, 5e-1, 5e-2)
     OBSTACLE_SHAPE = hppfcl.Sphere(1e-1)
     # Creating the QP
     NLP = NLP_with_obs(
@@ -162,14 +158,27 @@ if __name__ == "__main__":
     )
     Q_trs = trust_region_solver._xval_k
 
+    q_dot = []
+
+    for k in range(1, T):
+        q_dot.append(np.linalg.norm(get_difference_between_q_iter(Q_trs, k, rmodel.nq)))
+
+    if SAVE_RESULTS:
+        results = {
+            "name": "Iteration 80",
+            "Q_trs": Q_trs.tolist(),
+            "q_dot": q_dot,
+            "dist_min_obs": NLP._dist_min_obs_list,
+            "initial_cost": NLP._initial_cost,
+            "principal_cost": NLP._principal_cost,
+            "obstacle_cost": NLP._obstacle_cost,
+            "terminal_cost": NLP._terminal_cost,
+            "grad": NLP.gradval.tolist(),
+        }
+        with open("results_it_80.json", "w") as outfile:
+            json.dump(results, outfile)
+
     if WITH_PLOTTING:
-        q_dot = []
-
-        for k in range(1, T):
-            q_dot.append(
-                np.linalg.norm(get_difference_between_q_iter(Q_trs, k, rmodel.nq))
-            )
-
         plt.figure()
         plt.plot(q_dot, "-o")
         plt.xlabel("Iterations")
@@ -201,7 +210,3 @@ if __name__ == "__main__":
                 "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
             )
             display_last_traj(vis, Q_trs, INITIAL_CONFIG, T)
-
-    ###* DEBUG
-
-    print(NLP._obstacle_cost)
