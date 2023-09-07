@@ -43,7 +43,7 @@ from utils import (
 
 
 # ### HYPERPARMS
-T = 15
+T = 10
 WEIGHT_Q0 = 0.001
 WEIGHT_DQ = 1e-3
 WEIGHT_OBS = 10
@@ -52,9 +52,10 @@ MAX_ITER = 200
 EPS_SOLVER = 2e-6
 
 ###* OPTIONS
-WITH_PLOTTING = False
-WITH_DISPLAY = False
+WITH_PLOTTING = True
+WITH_DISPLAY = True
 SAVE_RESULTS = False
+
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
 TARGET.translation = np.array([0, 0, 1])
