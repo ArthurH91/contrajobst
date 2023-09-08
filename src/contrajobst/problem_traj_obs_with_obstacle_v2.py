@@ -202,11 +202,14 @@ class NLP_with_obs:
 
         self._dist_min_obs_list = []
         self._dist_max_obs_list = []
-        for iter in range(1, self._T):
+        self._non_zero_residual_t = []
+
+        for t in range(1, self._T):
             dist_obs_list_t = []
+            self._number_of_objects = 0
 
             # Obtaining the current configuration
-            q_t = get_q_iter_from_Q(Q, iter, self._nq)
+            q_t = get_q_iter_from_Q(Q, t, self._nq)
 
             # Updating the pinocchio models
             pin.framesForwardKinematics(self._rmodel, self._rdata, q_t)
@@ -221,6 +224,7 @@ class NLP_with_obs:
             ):
                 # Only selecting the shapes of the robot and not the environement
                 if not isinstance(geometry_objects.geometry, hppfcl.Box):
+                    self._number_of_objects += 1
                     # Computing the distance between the given part of the robot and the obstacle
                     dist = pydiffcol.distance(
                         geometry_objects.geometry,
@@ -233,11 +237,13 @@ class NLP_with_obs:
 
                     # Creating an array to temporarely store the residual
                     obstacle_residual_t_for_each_shape = np.zeros(3)
-
                     # If the given part of the robot is too close to the obstacle, a residual is added. 0 Otherwise
                     if dist < self._eps_collision_avoidance:
                         obstacle_residual_t_for_each_shape = self._WEIGHT_OBS * (
                             self._res.w
+                        )
+                        self._non_zero_residual_t.append(
+                            self._WEIGHT_OBS * (self._res.w)
                         )
                     dist_obs_list_t.append(dist)
 
@@ -298,6 +304,20 @@ class NLP_with_obs:
         )
 
         return self.costval
+
+    def cost_obstacle(self, Q: np.ndarray):
+        self.cost(Q)
+
+        return self._obstacle_cost
+
+    def grad_obstacle(self, Q: np.ndarray):
+        self.grad(Q)
+        gradval = self._derivative_residual_sec_part.T @ self._obstacle_residual
+
+        return gradval
+
+    def numdiff_grad_obstacle(self, Q: np.ndarray):
+        return numdiff(self.cost_obstacle, Q, eps=1e-8)
 
     def grad(self, Q: np.ndarray):
         """Returns the grad of the cost function.
@@ -396,9 +416,6 @@ class NLP_with_obs:
             pin.updateGeometryPlacements(
                 self._rmodel, self._rdata, self._cmodel, self._cdata
             )
-            pin.computeAllTerms(
-                self._rmodel, self._rdata, q_t, np.zeros(self._rmodel.nv)
-            )
 
             iter = 0  # Counter for each robot shape
             # For each configuration, going through all the geometry objects.
@@ -449,8 +466,13 @@ class NLP_with_obs:
                         J = np.zeros((3, self._nq))
 
                     self._derivative_residual_sec_part[
-                        iter * 3 : (iter + 1) * 3, t * nq : (t + 1) * nq
-                    ] = (J * self._WEIGHT_OBS)
+                        (t - 1) * self._number_of_objects * 3
+                        + iter * 3 : (t - 1) * self._number_of_objects * 3
+                        + (iter + 1) * 3,
+                        t * nq : (t + 1) * nq,
+                    ] = (
+                        J * self._WEIGHT_OBS
+                    )
 
                     iter += 1
 
