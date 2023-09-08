@@ -28,7 +28,6 @@ import json
 
 import numpy as np
 import pinocchio as pin
-from scipy.optimize import fmin
 import hppfcl
 
 from wrapper_robot import RobotWrapper
@@ -42,11 +41,12 @@ from utils import display_last_traj, get_transform, get_difference_between_q_ite
 T = 10
 WEIGHT_Q0 = 0.001
 WEIGHT_DQ = 1e-3
-WEIGHT_OBS = 20
+WEIGHT_OBS = 5
 WEIGHT_TERM_POS = 3
-MAX_ITER = 700
+MAX_ITER = 600
 EPS_SOLVER = 1e-6
 
+NAME_FILE = "results_theta_-18_06_WS_600_"
 
 # * Generate a reachable target
 TARGET = pin.SE3.Identity()
@@ -55,8 +55,8 @@ TARGET.translation = np.array([0, 0, 1])
 # * BOOLEANS FOR OPTIONS
 WITH_DISPLAY = True
 WITH_PLOT = False
-WITH_WARMSTART = False
-GOING_BACKWARD = False
+WITH_WARMSTART = True
+GOING_BACKWARD = True
 WITH_DATA_SAVE = True
 
 ###* LOADING THE ROBOT
@@ -91,13 +91,14 @@ if __name__ == "__main__":
     # Creating the HPPFCL Shapes for the obstacles and the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
     OBSTACLE_SHAPE = hppfcl.Sphere(1e-1)
-    theta_list = np.arange(-0.18, -0.16, 1e-2)
+    theta_list = np.arange(-0.18, 0.06, 1e-2)
 
     Q_list = np.zeros(len(theta_list) * (T) * rmodel.nq)
     i = 0  # for filling Q_list
 
     if WITH_DATA_SAVE:
         data = {}
+        data_bw = {}
 
     for theta in theta_list:
         print(f"theta = {theta}")
@@ -225,12 +226,26 @@ if __name__ == "__main__":
             if WITH_WARMSTART:
                 Q0 = Q_min
 
+            if WITH_DATA_SAVE:
+                data_bw["Q_min_" + str(round(theta, 3))] = Q_min.tolist()
+                data_bw["q_dot_" + str(round(theta, 3))] = q_dot
+                data_bw["dist_min_obs_" + str(round(theta, 3))] = ca._dist_min_obs_list
+                data_bw["initial_cost_" + str(round(theta, 3))] = ca._initial_cost
+                data_bw["principal_cost_" + str(round(theta, 3))] = ca._principal_cost
+                data_bw["obstacle_cost_" + str(round(theta, 3))] = ca._obstacle_cost
+                data_bw["terminal_cost_" + str(round(theta, 3))] = ca._terminal_cost
+                data_bw["grad_" + str(round(theta, 3))] = ca.gradval.tolist()
             i += 1
 
     if WITH_DATA_SAVE:
         data["theta"] = theta_list.tolist()
-        with open("results_theta_018017noWS.json", "w") as outfile:
+        with open(NAME_FILE + ".json", "w") as outfile:
             json.dump(data, outfile)
+
+        if GOING_BACKWARD:
+            data_bw["theta"] = np.flip(theta_list).tolist()
+            with open(NAME_FILE + "bw" + ".json", "w") as outfile:
+                json.dump(data_bw, outfile)
 
     # Generating the meshcat visualizer
     MeshcatVis = MeshcatWrapper()
