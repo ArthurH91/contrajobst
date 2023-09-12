@@ -1,23 +1,36 @@
 import os
 from os.path import dirname, join, abspath
-
+import argparse
 import json, codecs
 
 import numpy as np
 import pinocchio as pin
-import hppfcl
 import matplotlib.pyplot as plt
+from matplotlib.colors import LightSource
+from matplotlib import cm
 
 from wrapper_robot import RobotWrapper
 from wrapper_meshcat import MeshcatWrapper
-from problem_traj_obs_with_obstacle_v2 import NLP_with_obs
-from solver_newton_mt import SolverNewtonMt
-from utils import display_last_traj, get_transform, get_difference_between_q_iter
+
+from utils import get_transform
+
+###* PARSERS
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-p", "--plot", help="plot the results", action="store_true", default=False
+)
+parser.add_argument(
+    "-d", "--display", help="display the results", action="store_true", default=False
+)
+
+args = parser.parse_args()
 
 ###* HYPERPARAMS
 T = 10
-PLOT = False
-DISPLAY = True
+PLOT = args.plot
+DISPLAY = args.display
+name = "results_theta_-18_06_WS_600_dtheta1e-3"
 
 
 def display_traj(vis, Q_min, nq=7):
@@ -31,11 +44,11 @@ if __name__ == "__main__":
     path = os.getcwd()
 
     results_json = codecs.open(
-        path + "/results/results_theta_-18_06_WS_600_.json", "r", encoding="utf-8"
+        path + "/results/" + name + ".json", "r", encoding="utf-8"
     ).read()
 
     results_bw_json = codecs.open(
-        path + "/results/results_theta_-18_06_WS_600_bw.json", "r", encoding="utf-8"
+        path + "/results/" + name + "bw" + ".json", "r", encoding="utf-8"
     ).read()
 
     # Loading the json files
@@ -83,144 +96,221 @@ if __name__ == "__main__":
         grad_bw.append(np.linalg.norm(results_bw["grad_" + str(round(theta, 3))]))
         Q_min_list_bw.append(results_bw["Q_min_" + str(round(theta, 3))])
 
-
 if PLOT:
-    ###* SPEED
-
-    plt.figure()
-    for k in range(len(theta_list)):
-        plt.plot(q_dot[k], "-o", label="theta = " + str(round(theta_list[k], 3)))
-
-    plt.xlabel("Theta")
-    plt.ylabel("Speed")
-    plt.legend()
-    plt.title("Speed through iterations")
-
-    ###* DISTANCE MIN TO OBSTACLE
-    plt.figure()
-
-    for k in range(len(theta_list)):
-        plt.plot(
-            dist_min_obstacle[k], "-o", label="theta = " + str(round(theta_list[k], 3))
-        )
-
-    plt.plot(np.zeros(len(dist_min_obstacle[k])), label="Collision")
-    plt.xlabel("Theta")
-    plt.ylabel("Distance (m)")
-    plt.legend()
-    plt.title("Distance min to obstacle through iterations")
-
     ###* EVALUATION OF COSTS
 
     plt.figure()
 
-    plt.subplot(221)
-    plt.plot(theta_list, initial_cost, "o-")
-    plt.ylabel("Initial cost")
-    plt.xlabel("theta")
-    plt.yscale("log")
-    plt.title("Initial cost through theta (pose of obstacle)")
+    plt.plot(theta_list, initial_cost, "o-", label="Initial cost (FORWARD)")
+    plt.plot(theta_list, principal_cost, "o-", label="Regularization (FORWARD)")
+    plt.plot(theta_list, obstacle_cost, "o-", label="Obstacle cost (FORWARD)")
+    plt.plot(theta_list, terminal_cost, "o-", label="Terminal cost (FORWARD)")
 
-    plt.subplot(222)
-    plt.plot(theta_list, principal_cost, "o-")
-    plt.ylabel("Running cost")
-    plt.xlabel("theta")
-    plt.yscale("log")
-    plt.title("Running cost through theta (pose of obstacle)")
+    plt.plot(theta_list, initial_cost_bw, "o-", label="Initial cost (BACKWARD)")
+    plt.plot(theta_list, principal_cost_bw, "o-", label="Regularization (BACKWARD)")
+    plt.plot(theta_list, obstacle_cost_bw, "o-", label="Obstacle cost (BACKWARD)")
+    plt.plot(theta_list, terminal_cost_bw, "o-", label="Terminal cost (BACKWARD)")
 
-    plt.subplot(223)
-    plt.plot(theta_list, obstacle_cost, "o-")
-    plt.ylabel("Obstacle cost")
+    plt.ylabel("Cost")
     plt.xlabel("theta")
-    plt.title("Obstacle cost through theta (pose of obstacle)")
+    plt.legend()
 
-    plt.subplot(224)
-    plt.plot(theta_list, terminal_cost, "o-")
-    plt.ylabel("Terminal cost")
-    plt.xlabel("theta")
-    plt.yscale("log")
-    plt.title("Terminal cost through theta (pose of obstacle)")
-    plt.suptitle("Costs through theta")
+    plt.title("Cost through theta (pose of obstacle)")
 
     ###* STUDY OF THE GRADIENT
 
     plt.figure()
-    plt.plot(theta_list, grad, "-o")
+    plt.plot(theta_list, grad, "-o", label="Forward")
+    plt.plot(theta_list, grad_bw, "-o", label="Backward")
     plt.ylabel("Gradient")
     plt.xlabel("Theta")
     plt.yscale("log")
+    plt.legend()
     plt.title("Gradient norm through theta (pose of obstacle)")
 
-    ###! BACKWARD GRAPHS
+    ###* STUDY OF THE SPEED IN 3D
 
-    ###* SPEED
+    theta_array = np.array(theta_list)
 
-    plt.figure()
-    for k in range(len(theta_list)):
-        plt.plot(q_dot_bw[k], "-o", label="theta = " + str(round(theta_list[k], 3)))
+    it = np.arange(0, 9, 1)
 
-    plt.xlabel("Theta")
-    plt.ylabel("Speed")
-    plt.legend()
-    plt.title("Speed through iterations (BACKWARD)")
+    theta_mesh, it_mesh = np.meshgrid(it, theta_array)
 
-    ###* DISTANCE MIN TO OBSTACLE
-    plt.figure()
+    # FORWARD
+    q_dot_array = np.array(q_dot)
+    ls = LightSource(270, 45)
+    rgb = ls.shade(q_dot_array, cmap=cm.nipy_spectral, vert_exag=0.1, blend_mode="soft")
+    fig = plt.figure()
 
-    for k in range(len(theta_list)):
-        plt.plot(
-            dist_min_obstacle_bw[k],
-            "-o",
-            label="theta = " + str(round(theta_list[k], 3)),
-        )
+    ax1 = fig.add_subplot(221, projection="3d")
+    surf = ax1.plot_surface(
+        it_mesh,
+        theta_mesh,
+        q_dot_array,
+        rstride=1,
+        cstride=1,
+        alpha=0.3,
+        lw=0.5,
+        facecolors=rgb,
+        linewidth=0,
+        antialiased=False,
+        shade=False,
+    )
+    ax1.contour(it_mesh, theta_mesh, q_dot_array, zdir="z", offset=-10, cmap="coolwarm")
+    ax1.contour(
+        it_mesh, theta_mesh, q_dot_array, zdir="x", offset=-0.5, cmap="coolwarm"
+    )
+    ax1.contour(it_mesh, theta_mesh, q_dot_array, zdir="y", offset=10, cmap="coolwarm")
+    fig.colorbar(surf, shrink=0.5, aspect=5)
 
-    plt.plot(np.zeros(len(dist_min_obstacle_bw[k])), label="Collision")
-    plt.xlabel("Theta")
-    plt.ylabel("Distance (m)")
-    plt.legend()
-    plt.title("Distance min to obstacle through iterations (BACKWARD)")
+    ax1.set_xlabel("Theta")
+    ax1.set_ylabel("Iterations")
+    ax1.set_zlabel("Speed")
+    ax1.set_title("Speed through iterations and theta (FORWARD)")
 
-    ###* EVALUATION OF COSTS
+    # BACKWARD
 
-    plt.figure()
+    q_dot_bw_array = np.array(q_dot_bw)
+    ax2 = fig.add_subplot(222, projection="3d")
+    surf = ax2.plot_surface(
+        it_mesh,
+        theta_mesh,
+        q_dot_array,
+        rstride=1,
+        cstride=1,
+        alpha=0.3,
+        lw=0.5,
+        facecolors=rgb,
+        linewidth=0,
+        antialiased=False,
+        shade=False,
+    )
+    ax2.contour(
+        it_mesh, theta_mesh, q_dot_bw_array, zdir="z", offset=-10, cmap="coolwarm"
+    )
+    ax2.contour(
+        it_mesh, theta_mesh, q_dot_bw_array, zdir="x", offset=-0.5, cmap="coolwarm"
+    )
+    ax2.contour(
+        it_mesh, theta_mesh, q_dot_bw_array, zdir="y", offset=10, cmap="coolwarm"
+    )
+    fig.colorbar(surf, shrink=0.5, aspect=5)
 
-    plt.subplot(221)
-    plt.plot(theta_list, initial_cost_bw, "o-")
-    plt.ylabel("Initial cost")
-    plt.xlabel("theta")
-    plt.yscale("log")
-    plt.title("Initial cost through theta (pose of obstacle)")
+    ax2.set_xlabel("Theta")
+    ax2.set_ylabel("Iterations")
+    ax2.set_zlabel("Speed")
+    ax2.set_title("Speed through iterations and theta (BACKWARD)")
 
-    plt.subplot(222)
-    plt.plot(theta_list, principal_cost_bw, "o-")
-    plt.ylabel("Running cost")
-    plt.xlabel("theta")
-    plt.yscale("log")
-    plt.title("Running cost through theta (pose of obstacle)")
+    ###* STUDY OF THE OBSTACLE COLLISIONS IN 3D
 
-    plt.subplot(223)
-    plt.plot(theta_list, obstacle_cost_bw, "o-")
-    plt.ylabel("Obstacle cost")
-    plt.xlabel("theta")
-    plt.title("Obstacle cost through theta (pose of obstacle)")
+    dist_min_obstacle_array = np.array(dist_min_obstacle)
 
-    plt.subplot(224)
-    plt.plot(theta_list, terminal_cost_bw, "o-")
-    plt.ylabel("Terminal cost")
-    plt.xlabel("theta")
-    plt.yscale("log")
-    plt.title("Terminal cost through theta (pose of obstacle)")
-    plt.suptitle("Costs through theta (BACKWARD)")
+    ls = LightSource(270, 45)
+    rgb = ls.shade(
+        dist_min_obstacle_array, cmap=cm.nipy_spectral, vert_exag=0.1, blend_mode="soft"
+    )
+    ax = fig.add_subplot(223, projection="3d")
+    surf = ax.plot_surface(
+        it_mesh,
+        theta_mesh,
+        dist_min_obstacle_array,
+        rstride=1,
+        cstride=1,
+        alpha=0.3,
+        lw=0.5,
+        facecolors=rgb,
+        linewidth=0,
+        antialiased=False,
+        shade=False,
+    )
+    fig.colorbar(surf, shrink=0.5, aspect=5)
+    ax.contour(
+        it_mesh,
+        theta_mesh,
+        dist_min_obstacle_array,
+        zdir="z",
+        offset=-10,
+        cmap="coolwarm",
+    )
+    ax.contour(
+        it_mesh,
+        theta_mesh,
+        dist_min_obstacle_array,
+        zdir="x",
+        offset=-0.5,
+        cmap="coolwarm",
+    )
+    ax.contour(
+        it_mesh,
+        theta_mesh,
+        dist_min_obstacle_array,
+        zdir="y",
+        offset=10,
+        cmap="coolwarm",
+    )
 
-    ###* STUDY OF THE GRADIENT
+    ax.set_xlabel("Theta")
+    ax.set_ylabel("Iterations")
+    ax.set_zlabel("Distance min to obstacle (m)")
+    ax.set_title("Distance min to obstacle through iterations and theta (FORWARD)")
 
-    plt.figure()
-    plt.plot(theta_list, grad_bw, "-o")
-    plt.ylabel("Gradient")
-    plt.xlabel("Theta")
-    plt.yscale("log")
-    plt.title("Gradient norm through theta (pose of obstacle) (BACKWARD)")
+    # BACKWARD
 
+    dist_min_obstacle_bw_array = np.array(dist_min_obstacle_bw)
+
+    ls = LightSource(270, 45)
+    rgb = ls.shade(
+        dist_min_obstacle_bw_array,
+        cmap=cm.nipy_spectral,
+        vert_exag=0.1,
+        blend_mode="soft",
+    )
+    ax = fig.add_subplot(224, projection="3d")
+    surf = ax.plot_surface(
+        it_mesh,
+        theta_mesh,
+        dist_min_obstacle_bw_array,
+        rstride=1,
+        cstride=1,
+        alpha=0.3,
+        lw=0.5,
+        facecolors=rgb,
+        linewidth=0,
+        antialiased=False,
+        shade=False,
+    )
+    fig.colorbar(surf, shrink=0.5, aspect=5)
+
+    ax.contour(
+        it_mesh,
+        theta_mesh,
+        dist_min_obstacle_bw_array,
+        zdir="z",
+        offset=-10,
+        cmap="coolwarm",
+    )
+    ax.contour(
+        it_mesh,
+        theta_mesh,
+        dist_min_obstacle_bw_array,
+        zdir="x",
+        offset=-0.5,
+        cmap="coolwarm",
+    )
+    ax.contour(
+        it_mesh,
+        theta_mesh,
+        dist_min_obstacle_bw_array,
+        zdir="y",
+        offset=10,
+        cmap="coolwarm",
+    )
+
+    ax.set_xlabel("Theta")
+    ax.set_ylabel("Iterations")
+    ax.set_zlabel("Distance min to obstacle (m)")
+    ax.set_title("Distance min to obstacle through iterations and theta (BACKWARD)")
+    plt.suptitle("Distance min to the obstacle")
     plt.show()
 
 if DISPLAY:
