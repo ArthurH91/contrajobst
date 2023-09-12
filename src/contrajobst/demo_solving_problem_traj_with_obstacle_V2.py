@@ -26,6 +26,7 @@
 from os.path import dirname, join, abspath
 import json
 
+
 import numpy as np
 import pinocchio as pin
 import matplotlib.pyplot as plt
@@ -52,16 +53,17 @@ MAX_ITER = 500
 EPS_SOLVER = 2e-6
 
 ###* OPTIONS
-WITH_PLOTTING = True
+WITH_PLOTTING = False
 WITH_DISPLAY = True
 SAVE_RESULTS = False
+PROFILER = False
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
 TARGET.translation = np.array([0, 0, 1])
 
 # Generate a reachable obstacle
-OBSTACLE_translation = np.array([0.2, 0, 1.5])
+OBSTACLE_translation = np.array([0.2, 0, 1])
 rotation = np.identity(3)
 rotation[1, 1] = 0
 rotation[2, 2] = 0
@@ -149,8 +151,16 @@ if __name__ == "__main__":
         eps=EPS_SOLVER,
         bool_plot_results=WITH_PLOTTING,
     )
+    if PROFILER:
+        import cProfile, pstats, io
+        from pstats import SortKey
 
+        pr = cProfile.Profile()
+        pr.enable()
     trust_region_solver(Q0)
+
+    if PROFILER:
+        pr.disable()
     list_fval_mt, list_gradfkval_mt, list_alphak_mt, list_reguk = (
         trust_region_solver._fval_history,
         trust_region_solver._gradfval_history,
@@ -211,3 +221,10 @@ if __name__ == "__main__":
                 "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
             )
             display_last_traj(vis, Q_trs, INITIAL_CONFIG, T)
+
+    if PROFILER:
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
