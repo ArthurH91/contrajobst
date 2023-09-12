@@ -46,7 +46,7 @@ WEIGHT_TERM_POS = 3
 MAX_ITER = 600
 EPS_SOLVER = 1e-6
 
-NAME_FILE = "results_theta_-18_06_WS_600_"
+NAME_FILE = "results_theta_-18_06_WS_600_dtheta1e-3"
 
 # * Generate a reachable target
 TARGET = pin.SE3.Identity()
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     # Creating the HPPFCL Shapes for the obstacles and the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
     OBSTACLE_SHAPE = hppfcl.Sphere(1e-1)
-    theta_list = np.arange(-0.18, 0.06, 1e-2)
+    theta_list = np.arange(-0.18, 0.06, 1e-3)
 
     Q_list = np.zeros(len(theta_list) * (T) * rmodel.nq)
     i = 0  # for filling Q_list
@@ -225,6 +225,12 @@ if __name__ == "__main__":
 
             if WITH_WARMSTART:
                 Q0 = Q_min
+
+            q_dot = []
+            for k in range(1, T):
+                q_dot.append(
+                    np.linalg.norm(get_difference_between_q_iter(Q_min, k, rmodel.nq))
+                )
 
             if WITH_DATA_SAVE:
                 data_bw["Q_min_" + str(round(theta, 3))] = Q_min.tolist()
