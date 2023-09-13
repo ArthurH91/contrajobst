@@ -345,15 +345,15 @@ if PLOT:
         dist_min_to_obs_bw_std.append(np.std(dist_min_obstacle_bw[i]))
 
     plt.figure()
-    plt.subplot(211)
-    plt.plot(theta_list, q_dot_mean, "-o", label="Mean (Forward)")
+    plt.subplot(212)
+    plt.plot(theta_list, q_dot_mean, "o", label="Mean (Forward)")
     plt.fill_between(
         theta_list,
         np.array(q_dot_mean) + np.array(q_dot_std),
         np.array(q_dot_mean) - np.array(q_dot_std),
         alpha=0.3,
     )
-    plt.plot(theta_list, q_dot_bw_mean, "-o", label="Mean (Backward)")
+    plt.plot(theta_list, q_dot_bw_mean, "o", label="Mean (Backward)")
     plt.fill_between(
         theta_list,
         np.array(q_dot_bw_mean) + np.array(q_dot_bw_std),
@@ -365,15 +365,16 @@ if PLOT:
     plt.ylabel("Speed")
     plt.xlabel("Theta")
 
-    plt.subplot(212)
-    plt.plot(theta_list, dist_min_to_obs_mean, "-o", label="Mean (Forward)")
+    plt.subplot(211)
+    plt.plot(theta_list, dist_min_to_obs_mean, "o", label="Mean (Forward)")
     plt.fill_between(
         theta_list,
         np.array(dist_min_to_obs_mean) + np.array(dist_min_to_obs_std),
         np.array(dist_min_to_obs_mean) - np.array(dist_min_to_obs_std),
         alpha=0.3,
     )
-    plt.plot(theta_list, dist_min_to_obs_bw_mean, "-o", label="Mean (Backward)")
+    plt.plot(theta_list, dist_min_to_obs_bw_mean, "o", label="Mean (Backward)")
+    plt.plot(theta_list, np.zeros(len(theta_list)), "--", label="Collision")
     plt.fill_between(
         theta_list,
         np.array(dist_min_to_obs_bw_mean) + np.array(dist_min_to_obs_bw_std),
