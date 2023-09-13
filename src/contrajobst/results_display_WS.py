@@ -30,7 +30,7 @@ args = parser.parse_args()
 T = 10
 PLOT = args.plot
 DISPLAY = args.display
-name = "results_theta_-18_06_WS_600_dtheta1e-3"
+name = "results_theta_-18_06_WS_600_dtheta1e-3_V2"
 
 
 def display_traj(vis, Q_min, nq=7):
@@ -156,11 +156,11 @@ if PLOT:
         antialiased=False,
         shade=False,
     )
-    ax1.contour(it_mesh, theta_mesh, q_dot_array, zdir="z", offset=-10, cmap="coolwarm")
+    ax1.contour(it_mesh, theta_mesh, q_dot_array, zdir="z", offset=-1, cmap="coolwarm")
     ax1.contour(
         it_mesh, theta_mesh, q_dot_array, zdir="x", offset=-0.5, cmap="coolwarm"
     )
-    ax1.contour(it_mesh, theta_mesh, q_dot_array, zdir="y", offset=10, cmap="coolwarm")
+    ax1.contour(it_mesh, theta_mesh, q_dot_array, zdir="y", offset=1, cmap="coolwarm")
     fig.colorbar(surf, shrink=0.5, aspect=5)
 
     ax1.set_xlabel("Theta")
@@ -175,7 +175,7 @@ if PLOT:
     surf = ax2.plot_surface(
         it_mesh,
         theta_mesh,
-        q_dot_array,
+        q_dot_bw_array,
         rstride=1,
         cstride=1,
         alpha=0.3,
@@ -186,13 +186,13 @@ if PLOT:
         shade=False,
     )
     ax2.contour(
-        it_mesh, theta_mesh, q_dot_bw_array, zdir="z", offset=-10, cmap="coolwarm"
+        it_mesh, theta_mesh, q_dot_bw_array, zdir="z", offset=-1, cmap="coolwarm"
     )
     ax2.contour(
         it_mesh, theta_mesh, q_dot_bw_array, zdir="x", offset=-0.5, cmap="coolwarm"
     )
     ax2.contour(
-        it_mesh, theta_mesh, q_dot_bw_array, zdir="y", offset=10, cmap="coolwarm"
+        it_mesh, theta_mesh, q_dot_bw_array, zdir="y", offset=1, cmap="coolwarm"
     )
     fig.colorbar(surf, shrink=0.5, aspect=5)
 
@@ -229,7 +229,7 @@ if PLOT:
         theta_mesh,
         dist_min_obstacle_array,
         zdir="z",
-        offset=-10,
+        offset=-1,
         cmap="coolwarm",
     )
     ax.contour(
@@ -245,7 +245,7 @@ if PLOT:
         theta_mesh,
         dist_min_obstacle_array,
         zdir="y",
-        offset=10,
+        offset=1,
         cmap="coolwarm",
     )
 
@@ -311,6 +311,80 @@ if PLOT:
     ax.set_zlabel("Distance min to obstacle (m)")
     ax.set_title("Distance min to obstacle through iterations and theta (BACKWARD)")
     plt.suptitle("Distance min to the obstacle")
+
+    ###* STATS
+
+    # SPEED
+
+    q_dot_mean = []
+    q_dot_std = []
+
+    q_dot_bw_mean = []
+    q_dot_bw_std = []
+
+    for i in range(len(q_dot)):
+        q_dot_mean.append(np.mean(q_dot[i]))
+        q_dot_bw_mean.append(np.mean(q_dot_bw[i]))
+
+        q_dot_std.append(np.std(q_dot[i]))
+        q_dot_bw_std.append(np.std(q_dot_bw[i]))
+
+    # DIST MIN TO OBSTACLE
+
+    dist_min_to_obs_mean = []
+    dist_min_to_obs_std = []
+
+    dist_min_to_obs_bw_mean = []
+    dist_min_to_obs_bw_std = []
+
+    for i in range(len(q_dot)):
+        dist_min_to_obs_mean.append(np.mean(dist_min_obstacle[i]))
+        dist_min_to_obs_bw_mean.append(np.mean(dist_min_obstacle_bw[i]))
+
+        dist_min_to_obs_std.append(np.std(dist_min_obstacle[i]))
+        dist_min_to_obs_bw_std.append(np.std(dist_min_obstacle_bw[i]))
+
+    plt.figure()
+    plt.subplot(211)
+    plt.plot(theta_list, q_dot_mean, "-o", label="Mean (Forward)")
+    plt.fill_between(
+        theta_list,
+        np.array(q_dot_mean) + np.array(q_dot_std),
+        np.array(q_dot_mean) - np.array(q_dot_std),
+        alpha=0.3,
+    )
+    plt.plot(theta_list, q_dot_bw_mean, "-o", label="Mean (Backward)")
+    plt.fill_between(
+        theta_list,
+        np.array(q_dot_bw_mean) + np.array(q_dot_bw_std),
+        np.array(q_dot_bw_mean) - np.array(q_dot_bw_std),
+        alpha=0.3,
+    )
+    plt.legend()
+    plt.title("Mean of speed through thetas")
+    plt.ylabel("Speed")
+    plt.xlabel("Theta")
+
+    plt.subplot(212)
+    plt.plot(theta_list, dist_min_to_obs_mean, "-o", label="Mean (Forward)")
+    plt.fill_between(
+        theta_list,
+        np.array(dist_min_to_obs_mean) + np.array(dist_min_to_obs_std),
+        np.array(dist_min_to_obs_mean) - np.array(dist_min_to_obs_std),
+        alpha=0.3,
+    )
+    plt.plot(theta_list, dist_min_to_obs_bw_mean, "-o", label="Mean (Backward)")
+    plt.fill_between(
+        theta_list,
+        np.array(dist_min_to_obs_bw_mean) + np.array(dist_min_to_obs_bw_std),
+        np.array(dist_min_to_obs_bw_mean) - np.array(dist_min_to_obs_bw_std),
+        alpha=0.3,
+    )
+    plt.legend()
+    plt.ylabel("Distance min to obstacle")
+    plt.xlabel("Theta")
+    plt.title("Mean of distance to obstacle through thetas")
+    plt.suptitle("Comparison of means and standard deviation")
     plt.show()
 
 if DISPLAY:
