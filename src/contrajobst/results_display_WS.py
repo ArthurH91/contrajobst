@@ -386,6 +386,55 @@ if PLOT:
     plt.xlabel("Theta")
     plt.title("Mean of distance to obstacle through thetas")
     plt.suptitle("Comparison of means and standard deviation")
+
+    ###* COMPARISON SPEED / OBSTACLE COST
+
+    plt.figure()
+    plt.plot(
+        theta_list,
+        q_dot_mean,
+        "o",
+        label="Mean (Forward)",
+    )
+    plt.fill_between(
+        theta_list,
+        np.array(q_dot_mean) + np.array(q_dot_std),
+        np.array(q_dot_mean) - np.array(q_dot_std),
+        alpha=0.3,
+    )
+    plt.plot(
+        theta_list,
+        2.5e4 * np.array(obstacle_cost),
+        "o--",
+        label="Obstacle cost (FORWARD)",
+        dashes=(5, 10),
+    )
+
+    plt.plot(
+        theta_list,
+        q_dot_bw_mean,
+        "o",
+        label="Mean (Backward)",
+    )
+    plt.fill_between(
+        theta_list,
+        np.array(q_dot_bw_mean) + np.array(q_dot_bw_std),
+        np.array(q_dot_bw_mean) - np.array(q_dot_bw_std),
+        alpha=0.3,
+    )
+    plt.plot(
+        theta_list,
+        2.5e4 * np.array(obstacle_cost_bw),
+        "o--",
+        label="Obstacle cost (BACKWARD)",
+        dashes=(5, 10),
+    )
+
+    plt.legend()
+    plt.title("Mean of speed through thetas")
+    plt.ylabel("Speed")
+    plt.xlabel("Theta")
+
     plt.show()
 
 if DISPLAY:
