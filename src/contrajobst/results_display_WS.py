@@ -12,7 +12,7 @@ from matplotlib import cm
 from wrapper_robot import RobotWrapper
 from wrapper_meshcat import MeshcatWrapper
 
-from utils import get_transform
+from utils import get_transform, linear_gradient
 
 ###* PARSERS
 
@@ -23,13 +23,33 @@ parser.add_argument(
 parser.add_argument(
     "-d", "--display", help="display the results", action="store_true", default=False
 )
+parser.add_argument(
+    "-b",
+    "--backward",
+    help="display the backward trajectory",
+    action="store_true",
+    default=False,
+)
+
+parser.add_argument(
+    "-f",
+    "--forward",
+    help="display the forward trajectory",
+    action="store_true",
+    default=False,
+)
+
 
 args = parser.parse_args()
 
 ###* HYPERPARAMS
 T = 10
+nq = 7
 PLOT = args.plot
 DISPLAY = args.display
+ONLY_BACKWARD = args.backward
+ONLY_FORWARD = args.forward
+
 name = "results_theta_-18_06_WS_600_dtheta1e-3_V2"
 
 
@@ -101,15 +121,16 @@ if PLOT:
 
     plt.figure()
 
-    plt.plot(theta_list, initial_cost, "o-", label="Initial cost (FORWARD)")
-    plt.plot(theta_list, principal_cost, "o-", label="Regularization (FORWARD)")
-    plt.plot(theta_list, obstacle_cost, "o-", label="Obstacle cost (FORWARD)")
-    plt.plot(theta_list, terminal_cost, "o-", label="Terminal cost (FORWARD)")
-
-    plt.plot(theta_list, initial_cost_bw, "o-", label="Initial cost (BACKWARD)")
-    plt.plot(theta_list, principal_cost_bw, "o-", label="Regularization (BACKWARD)")
-    plt.plot(theta_list, obstacle_cost_bw, "o-", label="Obstacle cost (BACKWARD)")
-    plt.plot(theta_list, terminal_cost_bw, "o-", label="Terminal cost (BACKWARD)")
+    if not ONLY_BACKWARD:
+        plt.plot(theta_list, initial_cost, "o-", label="Initial cost (FORWARD)")
+        plt.plot(theta_list, principal_cost, "o-", label="Regularization (FORWARD)")
+        plt.plot(theta_list, obstacle_cost, "o-", label="Obstacle cost (FORWARD)")
+        plt.plot(theta_list, terminal_cost, "o-", label="Terminal cost (FORWARD)")
+    if not ONLY_FORWARD:
+        plt.plot(theta_list, initial_cost_bw, "o-", label="Initial cost (BACKWARD)")
+        plt.plot(theta_list, principal_cost_bw, "o-", label="Regularization (BACKWARD)")
+        plt.plot(theta_list, obstacle_cost_bw, "o-", label="Obstacle cost (BACKWARD)")
+        plt.plot(theta_list, terminal_cost_bw, "o-", label="Terminal cost (BACKWARD)")
 
     plt.ylabel("Cost")
     plt.xlabel("theta")
@@ -120,8 +141,10 @@ if PLOT:
     ###* STUDY OF THE GRADIENT
 
     plt.figure()
-    plt.plot(theta_list, grad, "-o", label="Forward")
-    plt.plot(theta_list, grad_bw, "-o", label="Backward")
+    if not ONLY_BACKWARD:
+        plt.plot(theta_list, grad, "-o", label="Forward")
+    if not ONLY_FORWARD:
+        plt.plot(theta_list, grad_bw, "-o", label="Backward")
     plt.ylabel("Gradient")
     plt.xlabel("Theta")
     plt.yscale("log")
@@ -137,11 +160,11 @@ if PLOT:
     theta_mesh, it_mesh = np.meshgrid(it, theta_array)
 
     # FORWARD
+
     q_dot_array = np.array(q_dot)
     ls = LightSource(270, 45)
     rgb = ls.shade(q_dot_array, cmap=cm.nipy_spectral, vert_exag=0.1, blend_mode="soft")
     fig = plt.figure()
-
     ax1 = fig.add_subplot(221, projection="3d")
     surf = ax1.plot_surface(
         it_mesh,
@@ -202,12 +225,14 @@ if PLOT:
     ax2.set_title("Speed through iterations and theta (BACKWARD)")
 
     ###* STUDY OF THE OBSTACLE COLLISIONS IN 3D
-
     dist_min_obstacle_array = np.array(dist_min_obstacle)
 
     ls = LightSource(270, 45)
     rgb = ls.shade(
-        dist_min_obstacle_array, cmap=cm.nipy_spectral, vert_exag=0.1, blend_mode="soft"
+        dist_min_obstacle_array,
+        cmap=cm.nipy_spectral,
+        vert_exag=0.1,
+        blend_mode="soft",
     )
     ax = fig.add_subplot(223, projection="3d")
     surf = ax.plot_surface(
@@ -346,41 +371,46 @@ if PLOT:
 
     plt.figure()
     plt.subplot(212)
-    plt.plot(theta_list, q_dot_mean, "o", label="Mean (Forward)")
-    plt.fill_between(
-        theta_list,
-        np.array(q_dot_mean) + np.array(q_dot_std),
-        np.array(q_dot_mean) - np.array(q_dot_std),
-        alpha=0.3,
-    )
-    plt.plot(theta_list, q_dot_bw_mean, "o", label="Mean (Backward)")
-    plt.fill_between(
-        theta_list,
-        np.array(q_dot_bw_mean) + np.array(q_dot_bw_std),
-        np.array(q_dot_bw_mean) - np.array(q_dot_bw_std),
-        alpha=0.3,
-    )
+    if not ONLY_BACKWARD:
+        plt.plot(theta_list, q_dot_mean, "o", label="Mean (Forward)")
+        plt.fill_between(
+            theta_list,
+            np.array(q_dot_mean) + np.array(q_dot_std),
+            np.array(q_dot_mean) - np.array(q_dot_std),
+            alpha=0.3,
+        )
+    if not ONLY_FORWARD:
+        plt.plot(theta_list, q_dot_bw_mean, "o", label="Mean (Backward)")
+        plt.fill_between(
+            theta_list,
+            np.array(q_dot_bw_mean) + np.array(q_dot_bw_std),
+            np.array(q_dot_bw_mean) - np.array(q_dot_bw_std),
+            alpha=0.3,
+        )
     plt.legend()
     plt.title("Mean of speed through thetas")
     plt.ylabel("Speed")
     plt.xlabel("Theta")
 
     plt.subplot(211)
-    plt.plot(theta_list, dist_min_to_obs_mean, "o", label="Mean (Forward)")
-    plt.fill_between(
-        theta_list,
-        np.array(dist_min_to_obs_mean) + np.array(dist_min_to_obs_std),
-        np.array(dist_min_to_obs_mean) - np.array(dist_min_to_obs_std),
-        alpha=0.3,
-    )
-    plt.plot(theta_list, dist_min_to_obs_bw_mean, "o", label="Mean (Backward)")
+    if not ONLY_BACKWARD:
+        plt.plot(theta_list, dist_min_to_obs_mean, "o", label="Mean (Forward)")
+        plt.fill_between(
+            theta_list,
+            np.array(dist_min_to_obs_mean) + np.array(dist_min_to_obs_std),
+            np.array(dist_min_to_obs_mean) - np.array(dist_min_to_obs_std),
+            alpha=0.3,
+        )
+    if not ONLY_FORWARD:
+        plt.plot(theta_list, dist_min_to_obs_bw_mean, "o", label="Mean (Backward)")
+        plt.fill_between(
+            theta_list,
+            np.array(dist_min_to_obs_bw_mean) + np.array(dist_min_to_obs_bw_std),
+            np.array(dist_min_to_obs_bw_mean) - np.array(dist_min_to_obs_bw_std),
+            alpha=0.3,
+        )
     plt.plot(theta_list, np.zeros(len(theta_list)), "--", label="Collision")
-    plt.fill_between(
-        theta_list,
-        np.array(dist_min_to_obs_bw_mean) + np.array(dist_min_to_obs_bw_std),
-        np.array(dist_min_to_obs_bw_mean) - np.array(dist_min_to_obs_bw_std),
-        alpha=0.3,
-    )
+
     plt.legend()
     plt.ylabel("Distance min to obstacle")
     plt.xlabel("Theta")
@@ -390,52 +420,206 @@ if PLOT:
     ###* COMPARISON SPEED / OBSTACLE COST
 
     plt.figure()
-    plt.plot(
-        theta_list,
-        q_dot_mean,
-        "o",
-        label="Mean (Forward)",
-    )
-    plt.fill_between(
-        theta_list,
-        np.array(q_dot_mean) + np.array(q_dot_std),
-        np.array(q_dot_mean) - np.array(q_dot_std),
-        alpha=0.3,
-    )
-    plt.plot(
-        theta_list,
-        2.5e4 * np.array(obstacle_cost),
-        "o--",
-        label="Obstacle cost (FORWARD)",
-        dashes=(5, 10),
-    )
+    if not ONLY_BACKWARD:
+        plt.plot(
+            theta_list,
+            q_dot_mean,
+            "o",
+            label="Mean (Forward)",
+        )
 
-    plt.plot(
-        theta_list,
-        q_dot_bw_mean,
-        "o",
-        label="Mean (Backward)",
-    )
-    plt.fill_between(
-        theta_list,
-        np.array(q_dot_bw_mean) + np.array(q_dot_bw_std),
-        np.array(q_dot_bw_mean) - np.array(q_dot_bw_std),
-        alpha=0.3,
-    )
-    plt.plot(
-        theta_list,
-        2.5e4 * np.array(obstacle_cost_bw),
-        "o--",
-        label="Obstacle cost (BACKWARD)",
-        dashes=(5, 10),
-    )
+        plt.fill_between(
+            theta_list,
+            np.array(q_dot_mean) + np.array(q_dot_std),
+            np.array(q_dot_mean) - np.array(q_dot_std),
+            alpha=0.3,
+        )
+        plt.plot(
+            theta_list,
+            2.5e4 * np.array(obstacle_cost),
+            "o--",
+            label="Obstacle cost (FORWARD)",
+            dashes=(5, 10),
+        )
+    if not ONLY_FORWARD:
+        plt.plot(
+            theta_list,
+            q_dot_bw_mean,
+            "o",
+            label="Mean (Backward)",
+        )
+        plt.fill_between(
+            theta_list,
+            np.array(q_dot_bw_mean) + np.array(q_dot_bw_std),
+            np.array(q_dot_bw_mean) - np.array(q_dot_bw_std),
+            alpha=0.3,
+        )
+        plt.plot(
+            theta_list,
+            2.5e4 * np.array(obstacle_cost_bw),
+            "o--",
+            label="Obstacle cost (BACKWARD)",
+            dashes=(5, 10),
+        )
 
     plt.legend()
     plt.title("Mean of speed through thetas")
     plt.ylabel("Speed")
     plt.xlabel("Theta")
 
-    plt.show()
+    ### STUDY OF THE q
+
+    # STUDY OF q_i_0
+
+color1 = "#FB575D"
+color2 = "#3575D5"
+
+n_theta = 240
+divide = 10
+q_i_0_list = []
+q_i_1_list = []
+q_i_2_list = []
+q_i_3_list = []
+q_i_4_list = []
+q_i_5_list = []
+q_i_6_list = []
+
+
+for Q in Q_min_list_bw[:n_theta]:
+    q_i_0 = []
+    q_i_1 = []
+    q_i_2 = []
+    q_i_3 = []
+    q_i_4 = []
+    q_i_5 = []
+    q_i_6 = []
+    for k in range(T):
+        q = Q[k * nq : (k + 1) * nq]
+        q_i_0.append(q[0])
+        q_i_1.append(q[1])
+        q_i_2.append(q[2])
+        q_i_3.append(q[3])
+        q_i_4.append(q[4])
+        q_i_5.append(q[5])
+        q_i_6.append(q[6])
+
+    q_i_0_list.append(q_i_0)
+    q_i_1_list.append(q_i_1)
+    q_i_2_list.append(q_i_2)
+    q_i_3_list.append(q_i_3)
+    q_i_4_list.append(q_i_4)
+    q_i_5_list.append(q_i_5)
+    q_i_6_list.append(q_i_6)
+
+col = linear_gradient(color1, color2, n_theta)
+
+plt.subplot(331)
+for theta_iter in range(n_theta):
+    if theta_iter % divide == 0:
+        plt.plot(q_i_0_list[theta_iter], "-o", color=col["hex"][theta_iter])
+
+plt.ylabel("Angle")
+plt.title("Evolution of q_i_0")
+
+plt.subplot(332)
+for theta_iter in range(n_theta):
+    if theta_iter % divide == 0:
+        plt.plot(q_i_1_list[theta_iter], "-o", color=col["hex"][theta_iter])
+
+plt.ylabel("Angle")
+plt.title("Evolution of q_i_1")
+
+plt.subplot(333)
+for theta_iter in range(n_theta):
+    if theta_iter % divide == 0:
+        plt.plot(q_i_2_list[theta_iter], "-o", color=col["hex"][theta_iter])
+
+plt.ylabel("Angle")
+plt.title("Evolution of q_i_2")
+
+plt.subplot(334)
+for theta_iter in range(n_theta):
+    if theta_iter % divide == 0:
+        plt.plot(q_i_6_list[theta_iter], "-o", color=col["hex"][theta_iter])
+
+plt.ylabel("Angle")
+plt.title("Evolution of q_i_3")
+
+plt.subplot(335)
+for theta_iter in range(n_theta):
+    if theta_iter % divide == 0:
+        plt.plot(q_i_4_list[theta_iter], "-o", color=col["hex"][theta_iter])
+
+plt.xlabel("Step of the trajectory")
+plt.ylabel("Angle")
+plt.title("Evolution of q_i_4")
+
+plt.subplot(336)
+for theta_iter in range(n_theta):
+    if theta_iter % divide == 0:
+        plt.plot(q_i_5_list[theta_iter], "-o", color=col["hex"][theta_iter])
+
+plt.xlabel("Step of the trajectory")
+plt.ylabel("Angle")
+plt.title("Evolution of q_i_5")
+
+plt.subplot(337)
+for theta_iter in range(n_theta):
+    if theta_iter % divide == 0:
+        plt.plot(q_i_6_list[theta_iter], "-o", color=col["hex"][theta_iter])
+
+plt.xlabel("Step of the trajectory")
+plt.ylabel("Angle")
+plt.title("Evolution of q_i_6")
+
+plt.suptitle("Evolution of q_i_j through the trajectory w.r.t theta ")
+
+
+### 3D
+
+theta_array = np.array(theta_list)
+
+step = np.arange(0, 10, 1)
+
+theta_mesh, step_mesh = np.meshgrid(step, theta_array)
+
+ls = LightSource(270, 45)
+rgb = ls.shade(
+    np.array(q_i_0_list), cmap=cm.nipy_spectral, vert_exag=0.1, blend_mode="soft"
+)
+fig = plt.figure()
+ax1 = fig.add_subplot(projection="3d")
+surf = ax1.plot_surface(
+    step_mesh,
+    theta_mesh,
+    np.array(q_i_0_list),
+    rstride=1,
+    cstride=1,
+    alpha=0.3,
+    lw=0.5,
+    linewidth=0,
+    antialiased=False,
+    shade=False,
+)
+# ax1.contour(
+#     step_mesh, theta_mesh, np.array(q_i_0_list), zdir="z", offset=-1, cmap="coolwarm"
+# )
+# ax1.contour(
+#     step_mesh, theta_mesh, np.array(q_i_0_list), zdir="x", offset=-0.5, cmap="coolwarm"
+# )
+# ax1.contour(
+#     step_mesh, theta_mesh, np.array(q_i_0_list), zdir="y", offset=1, cmap="coolwarm"
+# )
+# fig.colorbar(surf, shrink=0.5, aspect=5)
+
+ax1.set_xlabel("Theta")
+ax1.set_ylabel("Steps")
+ax1.set_zlabel("Angle")
+ax1.set_title("q_0 through steps and theta (BACKWARD)")
+
+
+plt.show()
+
 
 if DISPLAY:
     # * Generate a reachable target
@@ -508,11 +692,13 @@ if DISPLAY:
         ]
 
         meshcatvis["obstacle"].set_transform(get_transform(OBSTACLE))
-        print(
-            f"Press enter for the {k} -th trajectory where theta = {theta} with the forward WS"
-        )
-        display_traj(vis, Q_min_list[k])
-        print(
-            f"Now press enter for the {k} -th trajectory where theta = {theta} but with the backward WS"
-        )
-        display_traj(vis, Q_min_list_bw[k])
+        if not ONLY_BACKWARD:
+            print(
+                f"Press enter for the {k} -th trajectory where theta = {round(theta,4)} with the forward WS"
+            )
+            display_traj(vis, Q_min_list[k])
+        if not ONLY_FORWARD:
+            print(
+                f"Now press enter for the {k} -th trajectory where theta = {round(theta,4)} but with the backward WS"
+            )
+            display_traj(vis, Q_min_list_bw[k])
