@@ -588,7 +588,7 @@ rgb = ls.shade(
     np.array(q_i_0_list), cmap=cm.nipy_spectral, vert_exag=0.1, blend_mode="soft"
 )
 fig = plt.figure()
-ax1 = fig.add_subplot(projection="3d")
+ax1 = fig.add_subplot(331, projection="3d")
 surf = ax1.plot_surface(
     step_mesh,
     theta_mesh,
@@ -601,22 +601,130 @@ surf = ax1.plot_surface(
     antialiased=False,
     shade=False,
 )
-# ax1.contour(
-#     step_mesh, theta_mesh, np.array(q_i_0_list), zdir="z", offset=-1, cmap="coolwarm"
-# )
-# ax1.contour(
-#     step_mesh, theta_mesh, np.array(q_i_0_list), zdir="x", offset=-0.5, cmap="coolwarm"
-# )
-# ax1.contour(
-#     step_mesh, theta_mesh, np.array(q_i_0_list), zdir="y", offset=1, cmap="coolwarm"
-# )
-# fig.colorbar(surf, shrink=0.5, aspect=5)
 
 ax1.set_xlabel("Theta")
 ax1.set_ylabel("Steps")
 ax1.set_zlabel("Angle")
 ax1.set_title("q_0 through steps and theta (BACKWARD)")
 
+ax2 = fig.add_subplot(332, projection="3d")
+surf = ax2.plot_surface(
+    step_mesh,
+    theta_mesh,
+    np.array(q_i_1_list),
+    rstride=1,
+    cstride=1,
+    alpha=0.3,
+    lw=0.5,
+    linewidth=0,
+    antialiased=False,
+    shade=False,
+)
+
+ax2.set_xlabel("Theta")
+ax2.set_ylabel("Steps")
+ax2.set_zlabel("Angle")
+ax2.set_title("q_1 through steps and theta (BACKWARD)")
+
+ax3 = fig.add_subplot(333, projection="3d")
+surf = ax3.plot_surface(
+    step_mesh,
+    theta_mesh,
+    np.array(q_i_2_list),
+    rstride=1,
+    cstride=1,
+    alpha=0.3,
+    lw=0.5,
+    linewidth=0,
+    antialiased=False,
+    shade=False,
+)
+
+ax3.set_xlabel("Theta")
+ax3.set_ylabel("Steps")
+ax3.set_zlabel("Angle")
+ax3.set_title("q_2 through steps and theta (BACKWARD)")
+
+ax4 = fig.add_subplot(334, projection="3d")
+surf = ax4.plot_surface(
+    step_mesh,
+    theta_mesh,
+    np.array(q_i_3_list),
+    rstride=1,
+    cstride=1,
+    alpha=0.3,
+    lw=0.5,
+    linewidth=0,
+    antialiased=False,
+    shade=False,
+)
+
+ax4.set_xlabel("Theta")
+ax4.set_ylabel("Steps")
+ax4.set_zlabel("Angle")
+ax4.set_title("q_3 through steps and theta (BACKWARD)")
+
+ax5 = fig.add_subplot(335, projection="3d")
+surf = ax5.plot_surface(
+    step_mesh,
+    theta_mesh,
+    np.array(q_i_4_list),
+    rstride=1,
+    cstride=1,
+    alpha=0.3,
+    lw=0.5,
+    linewidth=0,
+    antialiased=False,
+    shade=False,
+)
+
+ax5.set_xlabel("Theta")
+ax5.set_ylabel("Steps")
+ax5.set_zlabel("Angle")
+ax5.set_title("q_4 through steps and theta (BACKWARD)")
+
+
+ax6 = fig.add_subplot(336, projection="3d")
+surf = ax6.plot_surface(
+    step_mesh,
+    theta_mesh,
+    np.array(q_i_5_list),
+    rstride=1,
+    cstride=1,
+    alpha=0.3,
+    lw=0.5,
+    linewidth=0,
+    antialiased=False,
+    shade=False,
+)
+
+ax6.set_xlabel("Theta")
+ax6.set_ylabel("Steps")
+ax6.set_zlabel("Angle")
+ax6.set_title("q_5 through steps and theta (BACKWARD)")
+
+ax7 = fig.add_subplot(337, projection="3d")
+surf = ax7.plot_surface(
+    step_mesh,
+    theta_mesh,
+    np.array(q_i_6_list),
+    rstride=1,
+    cstride=1,
+    alpha=0.3,
+    lw=0.5,
+    linewidth=0,
+    antialiased=False,
+    shade=False,
+)
+
+ax7.set_xlabel("Theta")
+ax7.set_ylabel("Steps")
+ax7.set_zlabel("Angle")
+ax7.set_title("q_6 through steps and theta (BACKWARD)")
+
+plt.suptitle(
+    "Evolution of each angle of the robot through the trajectory and through theta"
+)
 
 plt.show()
 
