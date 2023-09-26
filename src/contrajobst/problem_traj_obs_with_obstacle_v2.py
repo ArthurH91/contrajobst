@@ -36,6 +36,7 @@ from utils import (
     get_difference_between_q_iter,
     numdiff,
     get_difference_between_q_iter_sup,
+    select_strategy
 )
 
 # This class is for defining the optimization problem and computing the cost function, its gradient and hessian.
@@ -168,10 +169,11 @@ class NLP_with_obs:
         ### Computing the distance between the last configuration and the target
 
         # Distance request for pydiffcol
-        self._req = pydiffcol.DistanceRequest()
+        self._req, self._req_diff = select_strategy("first_order_gaussian")
         self._res = pydiffcol.DistanceResult()
+        self._res_diff = pydiffcol.DerivativeResult()
 
-        self._req.derivative_type = pydiffcol.DerivativeType.FirstOrderRS
+        # self._req.derivative_type = pydiffcol.DerivativeType.FirstOrderRS
 
         # Obtaining the last configuration of Q
         q_last = get_q_iter_from_Q(self._Q, self._T - 1, self._rmodel.nq)
@@ -372,9 +374,11 @@ class NLP_with_obs:
             self._TARGET,
             self._req,
             self._res,
+            self._req_diff,
+            self._res_diff
         )
 
-        J = jacobian.T @ self._res.dw_dq1.T
+        J = jacobian.T @ self._res_diff.dn_loc_dM1.T
 
         self._derivative_terminal_residual = self._WEIGHT_TERM * J.T
 
@@ -448,6 +452,8 @@ class NLP_with_obs:
                             self._OBSTACLE,
                             self._req,
                             self._res,
+                            self._req_diff,
+                            self._res_diff
                         )
 
                         # Getting the frame jacobian from the geometry object in the LOCAL reference frame
@@ -460,7 +466,7 @@ class NLP_with_obs:
                         )
 
                         # The jacobian here is the multiplication of the jacobian of the end effector and the jacobian of the distance between the geometry object and the obstacle
-                        J = (jacobian.T @ self._res.dw_dq1.T).T
+                        J = (jacobian.T @ self._res_diff.dn_loc_dM1.T).T
 
                     else:
                         J = np.zeros((3, self._nq))

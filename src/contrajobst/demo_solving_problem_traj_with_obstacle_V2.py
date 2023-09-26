@@ -53,7 +53,7 @@ MAX_ITER = 500
 EPS_SOLVER = 2e-6
 
 ###* OPTIONS
-WITH_PLOTTING = False
+WITH_PLOTTING = True
 WITH_DISPLAY = True
 SAVE_RESULTS = False
 PROFILER = False
@@ -73,6 +73,7 @@ OBSTACLE_rotation = rotation
 OBSTACLE = TARGET.copy()
 OBSTACLE.translation = OBSTACLE_translation
 OBSTACLE.rotation = OBSTACLE_rotation
+OBSTACLE_DIM = np.array([1e-2, 3e-1,3e-1])
 
 
 ###* LOADING THE ROBOT
@@ -103,7 +104,7 @@ if __name__ == "__main__":
     INITIAL_CONFIG = pin.neutral(rmodel)
     # Creating the HPPFCL Shapes for the obstacles and the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
-    OBSTACLE_SHAPE = hppfcl.Sphere(1e-1)
+    OBSTACLE_SHAPE = hppfcl.Box(OBSTACLE_DIM)
     # Creating the QP
     NLP = NLP_with_obs(
         rmodel,
@@ -129,8 +130,8 @@ if __name__ == "__main__":
         robot_model=rmodel,
         robot_collision_model=cmodel,
         robot_visual_model=vmodel,
-        obstacle_type="sphere",
-        OBSTACLE_DIM=1e-1,
+        obstacle_type="box",
+        OBSTACLE_DIM=OBSTACLE_DIM
     )
     vis = vis[0]
 
