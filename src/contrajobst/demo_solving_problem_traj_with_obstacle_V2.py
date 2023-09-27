@@ -25,6 +25,7 @@
 
 from os.path import dirname, join, abspath
 import json
+import argparse
 
 
 import numpy as np
@@ -43,20 +44,48 @@ from utils import (
 )
 
 
+
+###* PARSER
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-caps", "--capsule", help="transform the hppfcl spheres & cylinders into capsules for collision detection", action="store_true", default=False
+)
+parser.add_argument(
+    "-p", "--plot", help="plot the results", action="store_true", default=False
+)
+parser.add_argument(
+    "-d", "--display", help="display the results", action="store_true", default=False
+)
+
+parser.add_argument(
+    "-s", "--save", help="save the results in a Json file", action="store_true", default=False
+)
+parser.add_argument("-maxit", "--maxit", help = "number max of iterations of the solver", default=100, type=int)
+
+parser.add_argument(
+    "-profiler", "--profiler", help="Launch the profiler", action="store_true", default=False
+)
+
+
+args = parser.parse_args()
+
+
+###* OPTIONS
+WITH_PLOTTING = args.plot
+WITH_DISPLAY = args.display
+SAVE_RESULTS = args.save
+PROFILER = args.profiler
+
+
 # ### HYPERPARMS
 T = 10
 WEIGHT_Q0 = 0.001
 WEIGHT_DQ = 1e-3
 WEIGHT_OBS = 10
 WEIGHT_TERM_POS = 3
-MAX_ITER = 500
+MAX_ITER = args.maxit
 EPS_SOLVER = 2e-6
-
-###* OPTIONS
-WITH_PLOTTING = True
-WITH_DISPLAY = True
-SAVE_RESULTS = False
-PROFILER = False
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
@@ -120,6 +149,7 @@ if __name__ == "__main__":
         WEIGHT_DQ=WEIGHT_DQ,
         WEIGHT_OBS=WEIGHT_OBS,
         WEIGHT_TERM=WEIGHT_TERM_POS,
+        CAPSULE = args.capsule,
     )
 
     # Generating the meshcat visualizer
