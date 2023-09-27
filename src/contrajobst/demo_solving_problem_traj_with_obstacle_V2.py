@@ -89,10 +89,10 @@ EPS_SOLVER = 2e-6
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
-TARGET.translation = np.array([0, 0, 1])
+TARGET.translation = np.array([0, 0, 0.85])
 
 # Generate a reachable obstacle
-OBSTACLE_translation = np.array([0.2, 0, 1])
+OBSTACLE_translation = np.array([0.22, 0, 0.9])
 rotation = np.identity(3)
 rotation[1, 1] = 0
 rotation[2, 2] = 0
@@ -104,10 +104,9 @@ OBSTACLE1.translation = OBSTACLE_translation
 OBSTACLE1.rotation = OBSTACLE_rotation
 
 OBSTACLE2 = OBSTACLE1.copy()
-OBSTACLE2.translation = np.array([-0.2,0,1])
+OBSTACLE2.translation = np.array([-0.22,0,0.9])
 
 OBSTACLE_DIM = np.array([1e-2, 3e-1,3e-1])
-
 
 
 
