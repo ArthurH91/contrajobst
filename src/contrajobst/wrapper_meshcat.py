@@ -31,7 +31,7 @@ class MeshcatWrapper:
         TARGET=None,
         OBSTACLE=None,
         RADII_TARGET=5e-2,
-        OBSTACLE_DIM=[5e-1, 5e-1, 5e-2],
+        OBSTACLE_DIM=([5e-1, 5e-1, 5e-2]),
         robot=None,
         obstacle_type="sphere",
         robot_model=None,
@@ -74,11 +74,13 @@ class MeshcatWrapper:
             self._OBSTACLE = OBSTACLE
             self._OBSTACLE_DIM = OBSTACLE_DIM
             self._obstacle_type = obstacle_type
+            self._number_obstacle = len(self._OBSTACLE)
             # Creating the obstacle
-            if self._obstacle_type == "box":
-                self._renderBox("obstacle")
-            if self._obstacle_type == "sphere":
-                self._renderSphere("obstacle", type="obstacle")
+            for k in range(self._number_obstacle):
+                if self._obstacle_type == "box":
+                    self._renderBox("obstacle" + str(k), self._OBSTACLE_DIM[k], self._OBSTACLE[k])
+                if self._obstacle_type == "sphere":
+                    self._renderSphere("obstacle", type="obstacle")
 
         elif (
             robot_model is not None
@@ -154,7 +156,7 @@ class MeshcatWrapper:
         # Applying the transformation to the object
         self.viewer[e_name].set_transform(T)
 
-    def _renderBox(self, e_name: str, color=np.array([1.0, 1.0, 1.0, 1.0])):
+    def _renderBox(self, e_name: str, obstacle_dim : np.array, obstacle_pose : pin.SE3, color=np.array([1.0, 1.0, 1.0, 1.0])):
         """Displaying a sphere in a meshcat server.
 
         Parameters
@@ -166,11 +168,11 @@ class MeshcatWrapper:
         """
         # Setting the object in the viewer
         self.viewer[e_name].set_object(
-            g.Box(self._OBSTACLE_DIM), self._meshcat_material(*color)
+            g.Box(obstacle_dim), self._meshcat_material(*color)
         )
 
         # Obtaining its position in the right format
-        T = get_transform(self._OBSTACLE)
+        T = get_transform(obstacle_pose)
 
         # Applying the transformation to the object
         self.viewer[e_name].set_transform(T)

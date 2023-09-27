@@ -99,10 +99,16 @@ rotation[2, 2] = 0
 rotation[1, 2] = -1
 rotation[2, 1] = 1
 OBSTACLE_rotation = rotation
-OBSTACLE = TARGET.copy()
-OBSTACLE.translation = OBSTACLE_translation
-OBSTACLE.rotation = OBSTACLE_rotation
+OBSTACLE1 = TARGET.copy()
+OBSTACLE1.translation = OBSTACLE_translation
+OBSTACLE1.rotation = OBSTACLE_rotation
+
+OBSTACLE2 = OBSTACLE1.copy()
+OBSTACLE2.translation = np.array([-0.2,0,1])
+
 OBSTACLE_DIM = np.array([1e-2, 3e-1,3e-1])
+
+
 
 
 ###* LOADING THE ROBOT
@@ -141,7 +147,7 @@ if __name__ == "__main__":
         q0=INITIAL_CONFIG,
         TARGET=TARGET,
         TARGET_SHAPE=TARGET_SHAPE,
-        OBSTACLE=OBSTACLE,
+        OBSTACLE=OBSTACLE1,
         OBSTACLE_SHAPE=OBSTACLE_SHAPE,
         eps_collision_avoidance=0,
         T=T,
@@ -156,12 +162,12 @@ if __name__ == "__main__":
     MeshcatVis = MeshcatWrapper()
     vis = MeshcatVis.visualize(
         TARGET,
-        OBSTACLE,
+        OBSTACLE=(OBSTACLE1,OBSTACLE2),
         robot_model=rmodel,
         robot_collision_model=cmodel,
         robot_visual_model=vmodel,
         obstacle_type="box",
-        OBSTACLE_DIM=OBSTACLE_DIM
+        OBSTACLE_DIM=(OBSTACLE_DIM,OBSTACLE_DIM),
     )
     vis = vis[0]
 
