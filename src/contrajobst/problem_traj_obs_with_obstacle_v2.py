@@ -58,6 +58,7 @@ class NLP_with_obs:
         WEIGHT_TERM: float,
         WEIGHT_OBS: float,
         eps_collision_avoidance=0,
+        CAPSULE = False,
     ):
         """Class which computes the cost, the gradient and the hessian of the NLP for collision avoidance.
 
@@ -87,10 +88,10 @@ class NLP_with_obs:
             Weight penalizing the distance between the end effector and the target.
         WEIGHT_OBS : float
             Weight penalizing the collision with the obstacle.
-        WITH_DIFFCOL_FOR_TARGET : bool, optional
-            , by default True
         eps_collision_avoidance : float, by default 1e-5.
             Criteria of collision.
+        CAPSULE : bool, by default False.
+            Transforming the cylinders + spheres in capsules for distances & distances derivatives.
         """
 
         # Models of the robot
@@ -120,6 +121,9 @@ class NLP_with_obs:
         self._TARGET = TARGET
         self._TARGET_SHAPE = TARGET_SHAPE
 
+        # FLAGS
+        self._CAPSULE = CAPSULE
+        
         # Storing the IDs of the frame of the end effector
 
         self._EndeffID = self._rmodel.getFrameId("panda2_joint7")
@@ -224,33 +228,62 @@ class NLP_with_obs:
             for oMg, geometry_objects in zip(
                 self._cdata.oMg, self._cmodel.geometryObjects
             ):
-                # Only selecting the shapes of the robot and not the environement
-                if not isinstance(geometry_objects.geometry, hppfcl.Box):
-                    self._number_of_objects += 1
-                    # Computing the distance between the given part of the robot and the obstacle
-                    dist = pydiffcol.distance(
-                        geometry_objects.geometry,
-                        oMg,
-                        self._OBSTACLE_SHAPE,
-                        self._OBSTACLE,
-                        self._req,
-                        self._res,
-                    )
-
-                    # Creating an array to temporarely store the residual
-                    obstacle_residual_t_for_each_shape = np.zeros(3)
-                    # If the given part of the robot is too close to the obstacle, a residual is added. 0 Otherwise
-                    if dist < self._eps_collision_avoidance:
-                        obstacle_residual_t_for_each_shape = self._WEIGHT_OBS * (
-                            self._res.w
+                if self._CAPSULE:
+                    # Only selecting the shapes of the robot and not the environement
+                    if isinstance(geometry_objects.geometry, hppfcl.Cylinder):
+                        self._number_of_objects += 1
+                        # Computing the distance between the given part of the robot and the obstacle
+                        dist = pydiffcol.distance(
+                            hppfcl.Capsule(geometry_objects.geometry.radius,geometry_objects.geometry.halfLength),
+                            oMg,
+                            self._OBSTACLE_SHAPE,
+                            self._OBSTACLE,
+                            self._req,
+                            self._res,
                         )
-                        self._non_zero_residual_t.append(
-                            self._WEIGHT_OBS * (self._res.w)
-                        )
-                    dist_obs_list_t.append(dist)
+                        
+                        # Creating an array to temporarely store the residual
+                        obstacle_residual_t_for_each_shape = np.zeros(3)
+                        # If the given part of the robot is too close to the obstacle, a residual is added. 0 Otherwise
+                        if dist < self._eps_collision_avoidance:
+                            obstacle_residual_t_for_each_shape = self._WEIGHT_OBS * (
+                                self._res.w
+                            )
+                            self._non_zero_residual_t.append(
+                                self._WEIGHT_OBS * (self._res.w)
+                            )
+                        dist_obs_list_t.append(dist)
 
-                    # Adding the residual to the list of residuals
-                    obstacle_residuals_list.append(obstacle_residual_t_for_each_shape)
+                        # Adding the residual to the list of residuals
+                        obstacle_residuals_list.append(obstacle_residual_t_for_each_shape)
+                else:
+                    if not isinstance(geometry_objects.geometry, hppfcl.Box):
+                        self._number_of_objects += 1
+                        # Computing the distance between the given part of the robot and the obstacle
+                        dist = pydiffcol.distance(
+                            geometry_objects.geometry,
+                            oMg,
+                            self._OBSTACLE_SHAPE,
+                            self._OBSTACLE,
+                            self._req,
+                            self._res,
+                        )
+                    
+
+                        # Creating an array to temporarely store the residual
+                        obstacle_residual_t_for_each_shape = np.zeros(3)
+                        # If the given part of the robot is too close to the obstacle, a residual is added. 0 Otherwise
+                        if dist < self._eps_collision_avoidance:
+                            obstacle_residual_t_for_each_shape = self._WEIGHT_OBS * (
+                                self._res.w
+                            )
+                            self._non_zero_residual_t.append(
+                                self._WEIGHT_OBS * (self._res.w)
+                            )
+                        dist_obs_list_t.append(dist)
+
+                        # Adding the residual to the list of residuals
+                        obstacle_residuals_list.append(obstacle_residual_t_for_each_shape)
 
             self._dist_max_obs_list.append(max(dist_obs_list_t))
             self._dist_min_obs_list.append(min(dist_obs_list_t))
@@ -426,61 +459,118 @@ class NLP_with_obs:
             for oMg, geometry_objects in zip(
                 self._cdata.oMg, self._cmodel.geometryObjects
             ):
-                # Only selecting the shapes of the robot and not the environement
-                if not isinstance(geometry_objects.geometry, hppfcl.Box):
-                    # Computing the distance between the given part of the robot and the obstacle
+                if self._CAPSULE:
+                    # Only selecting the shapes of the robot and not the environement
+                    if isinstance(geometry_objects.geometry, hppfcl.Cylinder):
+                        # Computing the distance between the given part of the robot and the obstacle
 
-                    dist = pydiffcol.distance(
-                        geometry_objects.geometry,
-                        oMg,
-                        self._OBSTACLE_SHAPE,
-                        self._OBSTACLE,
-                        self._req,
-                        self._res,
-                    )
-                    # If the given part of the robot is too close to the obstacle, a residual is added. 0 Otherwise
-                    if dist < self._eps_collision_avoidance:
-                        # * Computing the derivative of the obstacle residual
-                        # Computing the jacobians in pinocchio
-                        pin.computeJointJacobians(self._rmodel, self._rdata, q_t)
+                        dist = pydiffcol.distance(
+                            hppfcl.Capsule(geometry_objects.geometry.radius,geometry_objects.geometry.halfLength),
+                            oMg,
+                            self._OBSTACLE_SHAPE,
+                            self._OBSTACLE,
+                            self._req,
+                            self._res,
+                        )
+                        # If the given part of the robot is too close to the obstacle, a residual is added. 0 Otherwise
+                        if dist < self._eps_collision_avoidance:
+                            # * Computing the derivative of the obstacle residual
+                            # Computing the jacobians in pinocchio
+                            pin.computeJointJacobians(self._rmodel, self._rdata, q_t)
 
-                        # Computing the derivatives of the distance
-                        _ = pydiffcol.distance_derivatives(
+                            # Computing the derivatives of the distance
+                            _ = pydiffcol.distance_derivatives(
+                                hppfcl.Capsule(geometry_objects.geometry.radius,geometry_objects.geometry.halfLength),
+                                oMg,
+                                self._OBSTACLE_SHAPE,
+                                self._OBSTACLE,
+                                self._req,
+                                self._res,
+                                self._req_diff,
+                                self._res_diff
+                            )
+
+                            # Getting the frame jacobian from the geometry object in the LOCAL reference frame
+                            jacobian = pin.computeFrameJacobian(
+                                self._rmodel,
+                                self._rdata,
+                                q_t,
+                                geometry_objects.parentFrame,
+                                pin.LOCAL,
+                            )
+
+                            # The jacobian here is the multiplication of the jacobian of the end effector and the jacobian of the distance between the geometry object and the obstacle
+                            J = (jacobian.T @ self._res_diff.dn_loc_dM1.T).T
+
+                        else:
+                            J = np.zeros((3, self._nq))
+
+                        self._derivative_residual_sec_part[
+                            (t - 1) * self._number_of_objects * 3
+                            + iter * 3 : (t - 1) * self._number_of_objects * 3
+                            + (iter + 1) * 3,
+                            t * nq : (t + 1) * nq,
+                        ] = (
+                            J * self._WEIGHT_OBS
+                        )
+
+                        iter += 1
+                else:
+                    # Only selecting the shapes of the robot and not the environement
+                    if not isinstance(geometry_objects.geometry, hppfcl.Box):
+                        # Computing the distance between the given part of the robot and the obstacle
+
+                        dist = pydiffcol.distance(
                             geometry_objects.geometry,
                             oMg,
                             self._OBSTACLE_SHAPE,
                             self._OBSTACLE,
                             self._req,
                             self._res,
-                            self._req_diff,
-                            self._res_diff
+                        )
+                        # If the given part of the robot is too close to the obstacle, a residual is added. 0 Otherwise
+                        if dist < self._eps_collision_avoidance:
+                            # * Computing the derivative of the obstacle residual
+                            # Computing the jacobians in pinocchio
+                            pin.computeJointJacobians(self._rmodel, self._rdata, q_t)
+
+                            # Computing the derivatives of the distance
+                            _ = pydiffcol.distance_derivatives(
+                                geometry_objects.geometry,
+                                oMg,
+                                self._OBSTACLE_SHAPE,
+                                self._OBSTACLE,
+                                self._req,
+                                self._res,
+                                self._req_diff,
+                                self._res_diff
+                            )
+
+                            # Getting the frame jacobian from the geometry object in the LOCAL reference frame
+                            jacobian = pin.computeFrameJacobian(
+                                self._rmodel,
+                                self._rdata,
+                                q_t,
+                                geometry_objects.parentFrame,
+                                pin.LOCAL,
+                            )
+
+                            # The jacobian here is the multiplication of the jacobian of the end effector and the jacobian of the distance between the geometry object and the obstacle
+                            J = (jacobian.T @ self._res_diff.dn_loc_dM1.T).T
+
+                        else:
+                            J = np.zeros((3, self._nq))
+
+                        self._derivative_residual_sec_part[
+                            (t - 1) * self._number_of_objects * 3
+                            + iter * 3 : (t - 1) * self._number_of_objects * 3
+                            + (iter + 1) * 3,
+                            t * nq : (t + 1) * nq,
+                        ] = (
+                            J * self._WEIGHT_OBS
                         )
 
-                        # Getting the frame jacobian from the geometry object in the LOCAL reference frame
-                        jacobian = pin.computeFrameJacobian(
-                            self._rmodel,
-                            self._rdata,
-                            q_t,
-                            geometry_objects.parentFrame,
-                            pin.LOCAL,
-                        )
-
-                        # The jacobian here is the multiplication of the jacobian of the end effector and the jacobian of the distance between the geometry object and the obstacle
-                        J = (jacobian.T @ self._res_diff.dn_loc_dM1.T).T
-
-                    else:
-                        J = np.zeros((3, self._nq))
-
-                    self._derivative_residual_sec_part[
-                        (t - 1) * self._number_of_objects * 3
-                        + iter * 3 : (t - 1) * self._number_of_objects * 3
-                        + (iter + 1) * 3,
-                        t * nq : (t + 1) * nq,
-                    ] = (
-                        J * self._WEIGHT_OBS
-                    )
-
-                    iter += 1
+                        iter += 1
 
         # Creating the derivative residual array which is the concatenation of the 2 derivative residual arrays.
         self._derivative_residual = np.zeros(
