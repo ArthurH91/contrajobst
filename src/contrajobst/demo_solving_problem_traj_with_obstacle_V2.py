@@ -103,9 +103,6 @@ OBSTACLE1 = TARGET.copy()
 OBSTACLE1.translation = OBSTACLE_translation
 OBSTACLE1.rotation = OBSTACLE_rotation
 
-OBSTACLE2 = OBSTACLE1.copy()
-OBSTACLE2.translation = np.array([-0.22,0,0.9])
-
 OBSTACLE_DIM = np.array([1e-2, 3e-1,3e-1])
 
 
@@ -161,12 +158,12 @@ if __name__ == "__main__":
     MeshcatVis = MeshcatWrapper()
     vis = MeshcatVis.visualize(
         TARGET,
-        OBSTACLE=(OBSTACLE1,OBSTACLE2),
+        OBSTACLE=OBSTACLE1,
         robot_model=rmodel,
         robot_collision_model=cmodel,
         robot_visual_model=vmodel,
         obstacle_type="box",
-        OBSTACLE_DIM=(OBSTACLE_DIM,OBSTACLE_DIM),
+        OBSTACLE_DIM=OBSTACLE_DIM,
     )
     vis = vis[0]
 
