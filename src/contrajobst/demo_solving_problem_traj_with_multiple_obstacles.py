@@ -89,45 +89,46 @@ EPS_SOLVER = 2e-6
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
-TARGET.translation = np.array([0, 0, 0.85])
-
-# Generate a reachable obstacle
-OBSTACLE_translation = np.array([0.22, 0, 0.9])
-rotation = np.identity(3)
-rotation[1, 1] = 0
-rotation[2, 2] = 0
-rotation[1, 2] = -1
-rotation[2, 1] = 1
-OBSTACLE_rotation = rotation
-OBSTACLE1 = TARGET.copy()
-OBSTACLE1.translation = OBSTACLE_translation
-OBSTACLE1.rotation = OBSTACLE_rotation
+TARGET.translation = np.array([-0.1, -0.15, 0.86])
 
 # OBSTACLES POSES
-OBSTACLE2 = OBSTACLE1.copy()
-OBSTACLE2.translation += np.array([-0.44,0,0])
 
-OBSTACLE3 = OBSTACLE1.copy()
-OBSTACLE4 = OBSTACLE1.copy()
-OBSTACLE5 = OBSTACLE1.copy()
+width = 1e-2
+height = 2e-1
+length = 5e-1
+
+dist_between_front_behind = 0.5
+
+# Generate a reachable obstacle
+OBSTACLE1_FRONT = TARGET.copy()
+OBSTACLE1_FRONT.translation = np.array([0.2, -0.1, 0.86])
 
 
-OBSTACLE3.translation += np.array([-0.22,0,-0.1])
-OBSTACLE4.translation += np.array([-0.22,0.15,0])
-OBSTACLE5.translation += np.array([-0.22,-0.15,0])
+OBSTACLE2_BEHIND = OBSTACLE1_FRONT.copy()
+OBSTACLE2_BEHIND.translation += np.array([- dist_between_front_behind,0,0])
+
+OBSTACLE3_BOTTOM = OBSTACLE1_FRONT.copy()
+OBSTACLE4_RIGHT = OBSTACLE1_FRONT.copy()
+OBSTACLE5_LEFT = OBSTACLE1_FRONT.copy()
 
 
-BIG_BOX = (OBSTACLE1, OBSTACLE2, OBSTACLE3, OBSTACLE4, OBSTACLE5)
+OBSTACLE3_BOTTOM.translation += np.array([-dist_between_front_behind/2,0,-0.1])
+OBSTACLE4_RIGHT.translation += np.array([-dist_between_front_behind/2,length/2,0])
+OBSTACLE5_LEFT.translation += np.array([-dist_between_front_behind/2,-length/2,0])
+
+
+BIG_BOX = (OBSTACLE1_FRONT, OBSTACLE2_BEHIND, OBSTACLE3_BOTTOM, OBSTACLE4_RIGHT, OBSTACLE5_LEFT)
 
 
 # OBSTACLES DIMENSIONS
 
-OBSTACLE_DIM12 = np.array([1e-2, 2e-1,3e-1])
-OBSTACLE_DIM3 = np.array([4.5e-1,1e-2,3e-1])
-OBSTACLE_DIM45 = np.array([4.5e-1,2e-1,1e-2])
+
+OBSTACLE_DIM12_FRONT_BEHIND = np.array([width,length,height])
+OBSTACLE_DIM3_BOTTOM = np.array([dist_between_front_behind, length ,width])
+OBSTACLE45_LEFT_RIGHT = np.array([dist_between_front_behind, width ,height])
 
 
-BIG_BOX_DIM = (OBSTACLE_DIM12,OBSTACLE_DIM12, OBSTACLE_DIM3, OBSTACLE_DIM45, OBSTACLE_DIM45 )
+BIG_BOX_DIM = (OBSTACLE_DIM12_FRONT_BEHIND,OBSTACLE_DIM12_FRONT_BEHIND, OBSTACLE_DIM3_BOTTOM, OBSTACLE45_LEFT_RIGHT, OBSTACLE45_LEFT_RIGHT )
 ###* LOADING THE ROBOT
 
 pinocchio_model_dir = join(dirname(dirname(str(abspath(__file__)))), "models")
@@ -157,11 +158,11 @@ if __name__ == "__main__":
     # Creating the HPPFCL Shapes for the obstacles and the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
     
-    OBSTACLE_SHAPE12 = hppfcl.Box(OBSTACLE_DIM12)
-    OBSTACLE_SHAPE3 = hppfcl.Box(OBSTACLE_DIM3)
-    OBSTACLE_SHAPE45 = hppfcl.Box(OBSTACLE_DIM45)
+    OBSTACLE_SHAPE12_FRONT_BEHIND = hppfcl.Box(OBSTACLE_DIM12_FRONT_BEHIND)
+    OBSTACLE_SHAPE3_BOTTOM = hppfcl.Box(OBSTACLE_DIM3_BOTTOM)
+    OBSTACLE_SHAPE45_LEFT_RIGHT = hppfcl.Box(OBSTACLE45_LEFT_RIGHT)
 
-    BIG_BOX_SHAPE = (OBSTACLE_SHAPE12, OBSTACLE_SHAPE12, OBSTACLE_SHAPE3, OBSTACLE_SHAPE45, OBSTACLE_SHAPE45)
+    BIG_BOX_SHAPE = (OBSTACLE_SHAPE12_FRONT_BEHIND, OBSTACLE_SHAPE12_FRONT_BEHIND, OBSTACLE_SHAPE3_BOTTOM, OBSTACLE_SHAPE45_LEFT_RIGHT, OBSTACLE_SHAPE45_LEFT_RIGHT)
 
     # Creating the QP
     NLP = NLP_with_obs(
