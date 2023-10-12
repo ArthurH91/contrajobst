@@ -31,7 +31,7 @@ import hppfcl
 import pydiffcol
 
 from wrapper_robot import RobotWrapper
-from utils import get_q_iter_from_Q, get_difference_between_q_iter_sup, numdiff
+from utils import get_q_iter_from_Q, get_difference_between_q_iter_sup, numdiff, select_strategy, get_transform
 
 # This class is for defining the optimization problem and computing the cost function, its gradient and hessian.
 
@@ -90,7 +90,7 @@ class NLP_without_obs:
         # Storing the IDs of the frame of the end effector
 
         self._EndeffID = self._rmodel.getFrameId("panda2_joint7")
-        self._EndeffID_geom = self._gmodel.getGeometryId("panda2_link7_sc_5")
+        self._EndeffID_geom = self._gmodel.getGeometryId("panda2_rightfinger_3")
         assert self._EndeffID_geom < len(self._gmodel.geometryObjects)
         assert self._EndeffID < len(self._rmodel.frames)
 
@@ -134,12 +134,11 @@ class NLP_without_obs:
         ###* TERMINAL RESIDUAL
         ### Computing the distance between the last configuration and the target
 
-        # Distance request for pydiffcol
-        self._req = pydiffcol.DistanceRequest()
+        self._req, self._req_diff = select_strategy("first_order_gaussian")
         self._res = pydiffcol.DistanceResult()
-
-        self._req.derivative_type = pydiffcol.DerivativeType.FirstOrderRS
-
+        self._res_diff = pydiffcol.DerivativeResult()
+        
+        
         # Obtaining the last configuration of Q
         q_last = get_q_iter_from_Q(self._Q, self._T - 1, self._rmodel.nq)
 
@@ -152,11 +151,17 @@ class NLP_without_obs:
         # Obtaining the cartesian position of the end effector.
         self.endeff_Transform = self._rdata.oMf[self._EndeffID]
         self.endeff_Shape = self._gmodel.geometryObjects[self._EndeffID_geom].geometry
-
+        
+        p_endeff_loc = self._gmodel.geometryObjects[self._EndeffID_geom].placement
+        frame_parent_frame = self._gmodel.geometryObjects[self._EndeffID_geom].parentFrame
+        
+        
+        p_endeff_world = (get_transform(self._rdata.oMf[frame_parent_frame]) @ get_transform(p_endeff_loc))
+        
         #
         dist_endeff_target = pydiffcol.distance(
             self.endeff_Shape,
-            self.endeff_Transform,
+            pin.SE3(p_endeff_world),
             self._target_shape,
             self._target,
             self._req,
@@ -164,7 +169,7 @@ class NLP_without_obs:
         )
 
         self._terminal_residual = (self._weight_term_pos) * self._res.w
-
+               
         ###* TOTAL RESIDUAL
         self._residual = np.concatenate(
             (
@@ -237,10 +242,16 @@ class NLP_without_obs:
             self._target,
             self._req,
             self._res,
+            self._req_diff,
+            self._res_diff
         )
 
-        J = jacobian.T @ self._res.dw_dq1.T
+        J = jacobian.T @ self._res_diff.dn_loc_dM1.T
 
+        J = pin.getFrameJacobian(
+            self._rmodel, self._rdata, self._EndeffID, pin.LOCAL_WORLD_ALIGNED
+        )[:3].T
+        
         self._derivative_terminal_residual = self._weight_term_pos * J.T
 
         # Putting them all together

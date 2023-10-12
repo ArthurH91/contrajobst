@@ -44,7 +44,7 @@ from utils import (
 
 ###* HYPERPARMS
 
-MAX_ITER = 3000
+MAX_ITER = 2000
 
 T = 5
 WEIGHT_Q0 = 0.001
@@ -63,7 +63,7 @@ WEIGHT_TERM_POS = 4
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
-TARGET.translation = np.array([0, 0, 1])
+TARGET.translation = np.array([-0.2, -0.4,1])
 
 ###* LOADING THE ROBOT
 
