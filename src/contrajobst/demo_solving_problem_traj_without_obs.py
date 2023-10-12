@@ -28,7 +28,6 @@ from os.path import dirname, join, abspath
 import numpy as np
 import pinocchio as pin
 import time
-from scipy.optimize import fmin
 import matplotlib.pyplot as plt
 import hppfcl
 

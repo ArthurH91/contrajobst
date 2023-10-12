@@ -67,6 +67,9 @@ parser.add_argument(
     "-profiler", "--profiler", help="Launch the profiler", action="store_true", default=False
 )
 
+parser.add_argument("-t", "--steps", help = "number of steps of the robot", default=10, type=int)
+
+
 
 args = parser.parse_args()
 
@@ -79,11 +82,11 @@ PROFILER = args.profiler
 
 
 # ### HYPERPARMS
-T = 10
+T = args.steps
 WEIGHT_Q0 = 0.001
-WEIGHT_DQ = 1e-3
+WEIGHT_DQ = 1e-4
 WEIGHT_OBS = 10
-WEIGHT_TERM_POS = 3
+WEIGHT_TERM_POS = 50
 MAX_ITER = args.maxit
 EPS_SOLVER = 2e-6
 
