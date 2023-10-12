@@ -69,14 +69,19 @@ class MeshcatWrapper:
             self._renderSphere("target", dim = RADII_TARGET, pose = TARGET)
 
         if OBSTACLE is not None:
-            number_obstacle = len(OBSTACLE)
-            # Creating the obstacle
-            for k in range(number_obstacle):
+            if type(OBSTACLE) == tuple:
+                number_obstacle = len(OBSTACLE)
+                # Creating the obstacle
+                for k in range(number_obstacle):
+                    if obstacle_type == "box":
+                        self._renderBox("obstacle" + str(k), OBSTACLE_DIM[k], OBSTACLE[k])
+                    if obstacle_type == "sphere":
+                        self._renderSphere("obstacle" + str(k), OBSTACLE_DIM[k], OBSTACLE[k])
+            else:
                 if obstacle_type == "box":
-                    self._renderBox("obstacle" + str(k), OBSTACLE_DIM[k], OBSTACLE[k])
+                        self._renderBox("obstacle", OBSTACLE_DIM, OBSTACLE)
                 if obstacle_type == "sphere":
-                    self._renderSphere("obstacle" + str(k), OBSTACLE_DIM[k], OBSTACLE[k])
-
+                        self._renderSphere("obstacle", OBSTACLE_DIM, OBSTACLE)
         elif (
             robot_model is not None
             and robot_collision_model is not None
