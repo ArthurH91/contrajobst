@@ -42,6 +42,7 @@ from utils import (
     get_difference_between_q_iter,
     plot_end_effector_positions,
 )
+from results_display import Q_trs_list
 
 
 
@@ -67,7 +68,9 @@ parser.add_argument(
     "-profiler", "--profiler", help="Launch the profiler", action="store_true", default=False
 )
 
-
+parser.add_argument(
+    "-ws", "--warmstart", help = "Warm start the solver with a potential solution", action="store_true", default=False
+)
 args = parser.parse_args()
 
 
@@ -76,7 +79,7 @@ WITH_PLOTTING = args.plot
 WITH_DISPLAY = args.display
 SAVE_RESULTS = args.save
 PROFILER = args.profiler
-
+WARM_START = args.warmstart
 
 # ### HYPERPARMS
 T = 250
@@ -202,6 +205,9 @@ if __name__ == "__main__":
     # Initial trajectory
     Q0 = np.concatenate([INITIAL_CONFIG] * (T))
 
+    if WARM_START: 
+        Q0 = np.array(Q_trs_list[0])
+
     # Trust region solver
     trust_region_solver = SolverNewtonMt(
         NLP.cost,
@@ -252,7 +258,7 @@ if __name__ == "__main__":
             "terminal_cost": NLP._terminal_cost,
             "grad": NLP.gradval.tolist(),
         }
-        with open("results_it_80.json", "w") as outfile:
+        with open("results_250_WS.json", "w") as outfile:
             json.dump(results, outfile)
 
     if WITH_PLOTTING:
