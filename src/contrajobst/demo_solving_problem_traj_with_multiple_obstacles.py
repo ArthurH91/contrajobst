@@ -79,7 +79,7 @@ PROFILER = args.profiler
 
 
 # ### HYPERPARMS
-T = 10
+T = 250
 WEIGHT_Q0 = 0.001
 WEIGHT_DQ = 1e-3
 WEIGHT_OBS = 10
