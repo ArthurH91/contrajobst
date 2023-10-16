@@ -122,7 +122,7 @@ class RobotWrapper:
             geom_endeff.meshColor = self._color
             # Add the geometry object to the geometrical model
             self._gmodel.addGeometryObject(geom_endeff)
-
+            return self._robot, self._rmodel, self._gmodel
         else:
             (
                 self._rmodel,
@@ -141,7 +141,7 @@ class RobotWrapper:
                 "universe",
             ]
 
-            jointsToLockIDs = [1, 9, 10]
+            jointsToLockIDs = [1,9,10]
 
             geom_models = [self._visual_model, self._collision_model]
             self._model_reduced, geometric_models_reduced = pin.buildReducedModel(
@@ -155,13 +155,40 @@ class RobotWrapper:
                 geometric_models_reduced[0],
                 geometric_models_reduced[1],
             )
+            
+            # Adding the end-effector shape
+            
+            # Obtaining the frame of the link7 used to generate the new shape
+            ID_frame_link7 = self._model_reduced.getFrameId("panda2_link7_sc")
+            # Frame 
+            frame_link7 = self._model_reduced.frames[ID_frame_link7]
+            # Parent joint of the frame
+            parent_joint_frame_link7 = frame_link7.parentJoint
+            # Placement of the frame
+            Mf_link7 = frame_link7.placement
+            
+            Mf_link7.translation += np.array([0.0,0,0.10]) 
+            
+            # Creating the end effector frame
+            endeff_frame = pin.Frame("end_effector", parent_joint_frame_link7, Mf_link7,pin.BODY)
+            self._model_reduced.addFrame(endeff_frame, False)
+            
+            # Creation of the sphere 
+            
+            endeff_radii = 1e-2
+            endeff_shape = hppfcl.Sphere(endeff_radii)
+            geom_endeff = pin.GeometryObject("end_effector_geom", parent_joint_frame_link7, Mf_link7, endeff_shape)
+            geom_endeff.meshColor = self._color
+            self._visual_model_reduced.addGeometryObject(geom_endeff)
+            self._collision_model_reduced.addGeometryObject(geom_endeff)
+
             return (
                 self._model_reduced,
                 self._collision_model_reduced,
                 self._visual_model_reduced,
             )
 
-        return self._robot, self._rmodel, self._gmodel
+        
 
 
 if __name__ == "__main__":
@@ -178,4 +205,4 @@ if __name__ == "__main__":
 
     # Generating the meshcat visualizer
     MeshcatVis = MeshcatWrapper()
-    vis = MeshcatVis.visualize(p, robot=robot)
+    vis = MeshcatVis.visualize(robot_model=rmodel, robot_visual_model=gmodel, robot_collision_model=gmodel)
