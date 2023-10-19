@@ -379,6 +379,49 @@ def select_strategy(strat: str, verbose: bool = False) -> Tuple[hppfcl.DistanceR
 
     return req, req_diff
 
+
+def check_limits(rmodel, Q : np.ndarray, CHECK_POS = True, CHECK_SPEED = True, CHECK_EFFORT = False):
+    """Checks whether the trajectory in input respects the limits given by the URDF and translated into the pinocchio model.
+
+    Args:
+        rmodel (pin.Model): Pinocchio model of the robot.
+        Q (np.ndarray): Array describing the trajectory of the robot
+        CHECK_POS (bool, optional): Checking the positions limits of each joint. Defaults to True.
+        CHECK_SPEED (bool, optional): Checking the speed limit of each joint. Defaults to True.
+        CHECK_EFFORT (bool, optional): Checking the effort limit of each joint. Defaults to False. # TO DO
+
+    Returns:
+        _type_: _description_
+    """
+    # Going through all the configurations in Q
+    pos_respect = True
+    vel_respect = True
+    pos_defect = []
+    vel_defect = []
+    k_pos_defect = []
+    k_vel_defect = []
+    for k in range(int(len(Q)/rmodel.nq) - 1):
+        # Obtaining q_k & q_k+1
+        q_k = get_q_iter_from_Q(Q, k, rmodel.nq)
+        q_k_next = get_q_iter_from_Q(Q, k+1, rmodel.nq)
+        vel_k = q_k_next - q_k
+        # Checking the positions limits if requested
+        if CHECK_POS:
+            for i, (q, q_min, q_max) in enumerate(zip(q_k, rmodel.lowerPositionLimit, rmodel.upperPositionLimit)):
+                if q > q_max or q < q_min:
+                    pos_respect = False
+                    pos_defect.append(q)
+                    k_pos_defect.append(k * rmodel.nq + i)
+        # Checking the speed limits if requested
+        if CHECK_SPEED:
+            for ii, (vel, vel_max) in enumerate(zip(vel_k, rmodel.velocityLimit)):
+                if abs(vel) > vel_max:
+                    vel_respect = False
+                    vel_defect.append(q)
+                    k_vel_defect.append(k * rmodel.nq + ii)                   
+    return "Respect the limits of positions ?",pos_respect, "values of the defect :", pos_defect, "positions of the defect", k_pos_defect,"Respect the limits of speed ?", vel_respect,"values of the defect :", vel_defect,"positions of the defect", k_vel_defect
+                
+
 if __name__ == "__main__":
     import example_robot_data as robex
 
