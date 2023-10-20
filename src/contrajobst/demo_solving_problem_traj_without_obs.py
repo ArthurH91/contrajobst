@@ -39,12 +39,15 @@ from utils import (
     display_last_traj,
     get_difference_between_q_iter_sup,
     get_q_iter_from_Q,
+    plot_end_effector_positions,
+    generate_reachable_target
+
 )
 
 
 ###* HYPERPARMS
 
-MAX_ITER = 2000
+MAX_ITER = 1000
 
 T = 5
 WEIGHT_Q0 = 0.001
@@ -58,12 +61,12 @@ WEIGHT_DQ = (
 
 # WEIGHT_Q0 = 0.01
 # WEIGHT_DQ = 0.01  #! NO CONVERGENCE FOR T = 5, T = 10, 11X ITERATIONS WITH WEIGHT_Q0 = 0.01 WITH T = 30. NO CONV FOR T = 10 & T = 5
-WEIGHT_TERM_POS = 4
+WEIGHT_TERM_POS = 1000
 
 
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
-TARGET.translation = np.array([-0.2, -0.4,1])
+TARGET.translation = np.array([0, -0.4,1.5])
 
 ###* LOADING THE ROBOT
 
@@ -89,9 +92,14 @@ if __name__ == "__main__":
     rmodel, cmodel, vmodel = robot_wrapper()
     rdata = rmodel.createData()
     cdata = cmodel.createData()
+    
+    # TARGET = generate_reachable_target(rmodel,rdata, "end_effector")
+
 
     # Initial config of the robot
     INITIAL_CONFIG = pin.neutral(rmodel)
+    INITIAL_CONFIG = np.array([0.,0.5,0.,-0.7,0.,1.5,0.])
+
 
     # Shape of the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
@@ -135,7 +143,7 @@ if __name__ == "__main__":
         callback=None,
         verbose=True,
         bool_plot_results=False,
-        eps=1e-5,
+        eps=1e-9,
     )
 
     trust_region_solver(Q0)
@@ -164,3 +172,8 @@ if __name__ == "__main__":
         "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
     )
     display_last_traj(vis, Q_trs, INITIAL_CONFIG, T)
+
+    plot_end_effector_positions(
+    rmodel, cmodel, rdata, Q_trs, T, rmodel.nq, TARGET, TARGET_SHAPE
+)
+    plt.show()

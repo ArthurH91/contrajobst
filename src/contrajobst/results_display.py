@@ -13,10 +13,10 @@ from matplotlib import cm
 from wrapper_robot import RobotWrapper
 from wrapper_meshcat import MeshcatWrapper
 
-from utils import get_transform, linear_gradient, check_limits
+from utils import get_transform, linear_gradient, check_limits, check_auto_collisions, get_q_iter_from_Q
 
 ### BOOLS
-DISPLAY = True
+DISPLAY = False
 CHECK_LIMITS = True
 
 ###* HYPERPARAMS
@@ -158,3 +158,17 @@ if __name__ == "__main__":
             
     if CHECK_LIMITS:
         print(check_limits(rmodel, Q_trs_list[0]))
+        
+        collisions = []
+        t_collision = []
+        for t in range(int(len(Q_trs_list[0])/rmodel.nq)):
+            q_t = get_q_iter_from_Q(Q_trs_list[0], t, rmodel.nq)
+            pin.framesForwardKinematics(rmodel, rdata, q_t)
+            pin.updateFramePlacements(rmodel, rdata)
+            pin.updateGeometryPlacements(rmodel, rdata, cmodel, cdata)
+            result = check_auto_collisions(rmodel, rdata, cmodel, cdata)
+            if len(result) != 0:
+                collisions.append(result)
+                t_collision.append(t)
+        print(f"collisions : {collisions} \n time : {t_collision} ")
+    

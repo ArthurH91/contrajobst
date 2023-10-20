@@ -1,3 +1,5 @@
+from os.path import dirname, join, abspath
+
 import unittest
 import numpy as np
 from utils import (
@@ -5,8 +7,10 @@ from utils import (
     get_transform,
     get_difference_between_q_iter,
     generate_reachable_target,
-    check_limits
+    check_limits,
+    check_auto_collisions
 )
+from wrapper_robot import RobotWrapper
 import pinocchio as pin
 
 
@@ -112,6 +116,44 @@ class TestUtils(unittest.TestCase):
 
         self.assertFalse(check_limits(robot.model, Q, CHECK_POS=False, CHECK_SPEED=True)[7], msg= "Problem of boolean while checking the limit of position while testing with a traj")
 
-    
+
+    def test_auto_collision(self):
+        """Test whether the function detects an auto-collision or not.
+        """
+        
+        # Importing the robot 
+        
+        pinocchio_model_dir = join(dirname(dirname(str(abspath(__file__)))), "models")
+
+        model_path = join(pinocchio_model_dir, "franka_description/robots")
+        mesh_dir = pinocchio_model_dir
+        urdf_filename = "franka2.urdf"
+        urdf_model_path = join(join(model_path, "panda"), urdf_filename)
+        
+        robot_wrapper = RobotWrapper(
+            name_robot="franka",
+            belong_to_example_robot_data=False,
+            urdf_model_path=urdf_model_path,
+            mesh_dir=mesh_dir,
+        )
+        rmodel, cmodel, vmodel = robot_wrapper()
+        rdata = rmodel.createData()
+        cdata = cmodel.createData()
+
+        # Checking that the check works correctly
+        q = pin.neutral(rmodel) # Shouldn't be a collision in neutral position
+        pin.framesForwardKinematics(rmodel, rdata, q)
+        pin.updateFramePlacements(rmodel, rdata)
+        pin.updateGeometryPlacements(rmodel, rdata, cmodel, cdata)
+        
+        self.assertEqual(len(check_auto_collisions(rmodel, rdata, cmodel, cdata)), 0)
+        
+        q =  np.array([0,0,0,-3.5,0,0,0])
+        pin.framesForwardKinematics(rmodel, rdata, q)
+        pin.updateFramePlacements(rmodel, rdata)
+        pin.updateGeometryPlacements(rmodel, rdata, cmodel, cdata)
+        
+        self.assertNotEqual(len(check_auto_collisions(rmodel, rdata, cmodel, cdata)), 0)
+
 if __name__ == "__main__":
     unittest.main()

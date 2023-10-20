@@ -41,6 +41,9 @@ from utils import (
     display_last_traj,
     get_difference_between_q_iter,
     plot_end_effector_positions,
+    get_q_iter_from_Q,
+    check_auto_collisions,
+    check_limits
 )
 from results_display import Q_trs_list
 
@@ -71,6 +74,11 @@ parser.add_argument(
 parser.add_argument(
     "-ws", "--warmstart", help = "Warm start the solver with a potential solution", action="store_true", default=False
 )
+
+parser.add_argument(
+    "-c", "--check", help = "Verify the angle limits / speed limits & accelerations limits of the robot", action="store_true", default=False
+)
+
 args = parser.parse_args()
 
 
@@ -80,13 +88,14 @@ WITH_DISPLAY = args.display
 SAVE_RESULTS = args.save
 PROFILER = args.profiler
 WARM_START = args.warmstart
+CHECK = args.check
 
 # ### HYPERPARMS
-T = 250
+T = 500
 WEIGHT_Q0 = 0.001
-WEIGHT_DQ = 1e-3
-WEIGHT_OBS = 10
-WEIGHT_TERM_POS = 3
+WEIGHT_DQ = 5e-2
+WEIGHT_OBS = 100
+WEIGHT_TERM_POS = 5
 MAX_ITER = args.maxit
 EPS_SOLVER = 2e-6
 
@@ -158,6 +167,8 @@ if __name__ == "__main__":
 
     # Initial configuration of the robot
     INITIAL_CONFIG = pin.neutral(rmodel)
+    
+    INITIAL_CONFIG = np.array([0.,0.5,0.,-0.7,0.,1.5,0.])
     # Creating the HPPFCL Shapes for the obstacles and the target
     TARGET_SHAPE = hppfcl.Sphere(5e-2)
     
@@ -282,6 +293,23 @@ if __name__ == "__main__":
         plt.suptitle("Distance min of robot to obstacle")
         plt.show()
 
+    if CHECK:
+        print(check_limits(rmodel, Q_trs_list[0]))
+            
+        collisions = []
+        t_collision = []
+        for t in range(int(len(Q_trs_list[0])/rmodel.nq)):
+            q_t = get_q_iter_from_Q(Q_trs_list[0], t, rmodel.nq)
+            pin.framesForwardKinematics(rmodel, rdata, q_t)
+            pin.updateFramePlacements(rmodel, rdata)
+            pin.updateGeometryPlacements(rmodel, rdata, cmodel, cdata)
+            result = check_auto_collisions(rmodel, rdata, cmodel, cdata)
+            if len(result) != 0:
+                collisions.append(result)
+                t_collision.append(t)
+        print(f"collisions : {collisions} \n time : {t_collision} ")
+
+
     if WITH_DISPLAY:
         print(
             "Press enter for displaying the trajectory of the newton's method from Marc Toussaint"
@@ -301,3 +329,4 @@ if __name__ == "__main__":
         ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
         ps.print_stats()
         print(s.getvalue())
+

@@ -36,7 +36,8 @@ from utils import (
     get_difference_between_q_iter,
     numdiff,
     get_difference_between_q_iter_sup,
-    select_strategy
+    select_strategy,
+    get_transform
 )
 
 # This class is for defining the optimization problem and computing the cost function, its gradient and hessian.
@@ -132,6 +133,8 @@ class NLP_with_obs:
 
         self._EndeffID = self._rmodel.getFrameId("panda2_joint7")
         self._EndeffID_geom = self._cmodel.getGeometryId("panda2_link7_sc_5")
+        # self._EndeffID_geom = self._cmodel.getGeometryId("end_effector_geom")
+
         self._Endeff_parent_frame = 68
         assert self._EndeffID_geom <= len(self._cmodel.geometryObjects)
         assert self._EndeffID <= len(self._rmodel.frames)
@@ -196,17 +199,38 @@ class NLP_with_obs:
         self.endeff_Transform = self._rdata.oMf[self._EndeffID]
         self.endeff_Shape = self._cmodel.geometryObjects[self._EndeffID_geom].geometry
 
-        #
+        # #
+        # dist_endeff_target = pydiffcol.distance(
+        #     self.endeff_Shape,
+        #     self.endeff_Transform,
+        #     self._TARGET_SHAPE,
+        #     self._TARGET,
+        #     self._req,
+        #     self._res,
+        # )
+        # self._terminal_residual = (self._WEIGHT_TERM) * self._res.w
+
+        p_endeff_loc = self._cmodel.geometryObjects[self._EndeffID_geom].placement
+        frame_parent_frame = 68
+        
+        
+        p_endeff_world = (get_transform(self._rdata.oMf[frame_parent_frame]) @ get_transform(p_endeff_loc))
+        
+        
         dist_endeff_target = pydiffcol.distance(
             self.endeff_Shape,
-            self.endeff_Transform,
+            pin.SE3(p_endeff_world),
             self._TARGET_SHAPE,
             self._TARGET,
             self._req,
             self._res,
         )
+
         self._terminal_residual = (self._WEIGHT_TERM) * self._res.w
 
+
+        # self._terminal_residual = (self._WEIGHT_TERM) * (p_endeff_world - self._TARGET.translation)
+        
         ###* OBSTACLE RESIDUAL
         obstacle_residuals_list = []
 
@@ -410,26 +434,30 @@ class NLP_with_obs:
             self._rmodel, self._rdata, self._EndeffID, pin.LOCAL
         )
 
-        dist = pydiffcol.distance(
-            self.endeff_Shape,
-            self.endeff_Transform,
-            self._TARGET_SHAPE,
-            self._TARGET,
-            self._req,
-            self._res,
-        )
-        _ = pydiffcol.distance_derivatives(
-            self.endeff_Shape,
-            self.endeff_Transform,
-            self._TARGET_SHAPE,
-            self._TARGET,
-            self._req,
-            self._res,
-            self._req_diff,
-            self._res_diff
-        )
+        # dist = pydiffcol.distance(
+        #     self.endeff_Shape,
+        #     self.endeff_Transform,
+        #     self._TARGET_SHAPE,
+        #     self._TARGET,
+        #     self._req,
+        #     self._res,
+        # )
+        # _ = pydiffcol.distance_derivatives(
+        #     self.endeff_Shape,
+        #     self.endeff_Transform,
+        #     self._TARGET_SHAPE,
+        #     self._TARGET,
+        #     self._req,
+        #     self._res,
+        #     self._req_diff,
+        #     self._res_diff
+        # )
 
-        J = jacobian.T @ self._res_diff.dn_loc_dM1.T
+        # J = jacobian.T @ self._res_diff.dn_loc_dM1.T
+
+        J = pin.getFrameJacobian(
+                    self._rmodel, self._rdata, self._EndeffID, pin.LOCAL_WORLD_ALIGNED
+                )[:3].T
 
         self._derivative_terminal_residual = self._WEIGHT_TERM * J.T
 
