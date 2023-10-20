@@ -5,6 +5,7 @@ from utils import (
     get_transform,
     get_difference_between_q_iter,
     generate_reachable_target,
+    check_limits
 )
 import pinocchio as pin
 
@@ -31,7 +32,7 @@ class TestUtils(unittest.TestCase):
         q2 = 2 * np.ones((6))
         Q = np.concatenate((q1, q2))
         self.assertTrue(
-            np.array_equal(get_difference_between_q_iter(Q, 0, 6), np.ones(6)),
+            np.array_equal(get_difference_between_q_iter(Q, 1, 6), np.ones(6)),
             msg="Error while doing the difference between the arrays",
         )
 
@@ -71,6 +72,46 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(np.all(np.isfinite(p.translation)))
         self.assertTrue(np.isclose(np.linalg.norm(dist_endeff_target), 0, atol=1e-5))
 
+    def test_check_limits(self):
+        """Testing the function check_limits by making sure it tests the right limits
+        """
+        
+        import example_robot_data
+        robot=example_robot_data.load('ur10')
+        upper_pos_limit = robot.model.upperPositionLimit
+        lower_pos_limit = robot.model.lowerPositionLimit
+        vel_limit = robot.model.velocityLimit
+        
+        # Checking whether the position limit fails correctly 
+        q_upper_pos_limit_0 = robot.model.upperPositionLimit + np.array([1,0,0,0,0,0])
+        self.assertFalse(check_limits(robot.model, q_upper_pos_limit_0, CHECK_POS=True, CHECK_SPEED=False)[1], msg= "Problem of boolean while checking the limit of position")
+        self.assertEqual(check_limits(robot.model, q_upper_pos_limit_0, CHECK_POS=True, CHECK_SPEED=False)[3], q_upper_pos_limit_0[0], msg = "Problem of value when checking the limits of position")
+        self.assertEqual(check_limits(robot.model, q_upper_pos_limit_0, CHECK_POS=True, CHECK_SPEED=False)[5][0], 0.0, msg = "Problem of index when checking the limits of position")
 
+        q_lower_pos_limit_1 = lower_pos_limit + np.array([0,-1,0,0,0,0])
+
+        self.assertFalse(check_limits(robot.model, q_lower_pos_limit_1, CHECK_POS=True, CHECK_SPEED=False)[1], msg= "Problem of boolean while checking the limit of position")
+        self.assertEqual(check_limits(robot.model, q_lower_pos_limit_1, CHECK_POS=True, CHECK_SPEED=False)[3], q_lower_pos_limit_1[1], msg = "Problem of value when checking the limits of position")
+        self.assertEqual(check_limits(robot.model, q_lower_pos_limit_1, CHECK_POS=True, CHECK_SPEED=False)[5][0], 1, msg = "Problem of index when checking the limits of position")
+
+        # Checking whether the position limit succeed correctly 
+        q_upper_pos_limit_2 = upper_pos_limit + np.array([0,0,-0.1,0,0,0])
+
+        self.assertTrue(check_limits(robot.model, q_upper_pos_limit_2, CHECK_POS=True, CHECK_SPEED=False)[1], msg= "Problem of boolean while checking the limit of position")
+        
+        # Checking the loop going through all the q
+        Q = np.concatenate((q_upper_pos_limit_0, q_lower_pos_limit_1, q_upper_pos_limit_2))
+        
+        self.assertFalse(check_limits(robot.model, Q, CHECK_POS=True, CHECK_SPEED=False)[1], msg= "Problem of boolean while checking the limit of position while testing with a traj")
+        self.assertEqual(check_limits(robot.model, Q, CHECK_POS=True, CHECK_SPEED=False)[3], [q_upper_pos_limit_0[0], q_lower_pos_limit_1[1]], msg = "Problem of value when checking the limits of position while testing with a traj")
+        self.assertEqual(check_limits(robot.model, Q, CHECK_POS=True, CHECK_SPEED=False)[5], [0,7], msg = "Problem of index when checking the limits of position while testing with a traj")
+
+        # Testing the speed limits
+        
+        Q = np.concatenate((Q, np.zeros(len(q_upper_pos_limit_0))))
+
+        self.assertFalse(check_limits(robot.model, Q, CHECK_POS=False, CHECK_SPEED=True)[7], msg= "Problem of boolean while checking the limit of position while testing with a traj")
+
+    
 if __name__ == "__main__":
     unittest.main()

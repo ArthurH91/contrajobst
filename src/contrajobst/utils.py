@@ -5,10 +5,7 @@ import time
 import copy
 import matplotlib.pyplot as plt
 from typing import Tuple
-try:
-    import pydiffcol
-except:
-    pass
+import pydiffcol
 
 
 RED = np.array([249, 136, 126, 125]) / 255
@@ -400,11 +397,9 @@ def check_limits(rmodel, Q : np.ndarray, CHECK_POS = True, CHECK_SPEED = True, C
     vel_defect = []
     k_pos_defect = []
     k_vel_defect = []
-    for k in range(int(len(Q)/rmodel.nq) - 1):
+    for k in range(int(len(Q)/rmodel.nq)):
         # Obtaining q_k & q_k+1
         q_k = get_q_iter_from_Q(Q, k, rmodel.nq)
-        q_k_next = get_q_iter_from_Q(Q, k+1, rmodel.nq)
-        vel_k = q_k_next - q_k
         # Checking the positions limits if requested
         if CHECK_POS:
             for i, (q, q_min, q_max) in enumerate(zip(q_k, rmodel.lowerPositionLimit, rmodel.upperPositionLimit)):
@@ -414,14 +409,85 @@ def check_limits(rmodel, Q : np.ndarray, CHECK_POS = True, CHECK_SPEED = True, C
                     k_pos_defect.append(k * rmodel.nq + i)
         # Checking the speed limits if requested
         if CHECK_SPEED:
+            if k == int(len(Q)/rmodel.nq) -1:
+                break
+            q_k_next = get_q_iter_from_Q(Q, k+1, rmodel.nq)
+            vel_k = q_k_next - q_k
             for ii, (vel, vel_max) in enumerate(zip(vel_k, rmodel.velocityLimit)):
                 if abs(vel) > vel_max:
                     vel_respect = False
-                    vel_defect.append(q)
+                    vel_defect.append(vel)
                     k_vel_defect.append(k * rmodel.nq + ii)                   
     return "Respect the limits of positions ?",pos_respect, "values of the defect :", pos_defect, "positions of the defect", k_pos_defect,"Respect the limits of speed ?", vel_respect,"values of the defect :", vel_defect,"positions of the defect", k_vel_defect
                 
+def check_auto_collisions(rmodel : pin.Model, rdata : pin.Data, cmodel : pin.GeometryModel, cdata : pin.Data):
+    """Check whether the model is in auto-collision.
 
+    Args:
+        rmodel (pin.Model): Pinocchio model of the robot
+        rdata (pin.Data): Data of the model
+        cmodel (pin.GeometryModel): Collision model of the robot
+        cdata (pin.Data): collision data of the robot
+    """
+    pairs_to_avoid = (
+        ("panda2_link0_sc", "panda2_link1_sc"),
+        ("panda2_link0_sc", "panda2_link2_sc"),
+        ("panda2_link1_sc","panda2_link2_sc"),
+        ("panda2_link1_sc","panda2_link3_sc"),
+        ("panda2_link2_sc","panda2_link3_sc"), 
+        ("panda2_link3_sc","panda2_link4_sc"),
+        ("panda2_link3_sc","panda2_link5_sc"),
+        ("panda2_link4_sc","panda2_link5_sc"),
+        ("panda2_link5_sc","panda2_link6_sc"),
+        ("panda2_link5_sc","panda2_link7_sc"),
+        ("panda2_link6_sc","panda2_link7_sc"),
+        ("panda2_link6_sc","panda2_hand_sc"),
+        ("panda2_link7_sc","panda2_hand_sc"),
+        ("panda2_link6_sc","panda2_leftfinger"),
+        ("panda2_link7_sc","panda2_leftfinger"),
+        ("panda2_hand_sc","panda2_leftfinger"),
+        ("panda2_link6_sc","panda2_rightfinger"), 
+        ("panda2_link7_sc","panda2_rightfinger"),
+        ("panda2_hand_sc","panda2_rightfinger"), 
+        ("panda2_leftfinger","panda2_rightfinger"),
+    )
+    oMg_list = []
+    geometry_objects_name = []
+    geometry_objects_geom = [] 
+    collision_pairs = []
+    # Distance request for pydiffcol
+    req, req_diff = select_strategy("first_order_gaussian")
+    res = pydiffcol.DistanceResult()
+    res_diff = pydiffcol.DerivativeResult()
+        
+    for oMg, geometry_objects in zip(cdata.oMg, cmodel.geometryObjects):
+        # Only selecting the cylinders
+        if isinstance(geometry_objects.geometry, hppfcl.Cylinder):
+            oMg_list.append(oMg)
+            geometry_objects_name.append(geometry_objects.name[:-2])
+            geometry_objects_geom.append(geometry_objects.geometry)
+    
+    # Going through all the geometry objects of the collision model
+    for oMg, geometry_objects in zip(cdata.oMg, cmodel.geometryObjects):
+        # Only selecting the cylinders
+        if isinstance(geometry_objects.geometry, hppfcl.Cylinder):
+            for oMg_ref, geometry_objects_name_ref, geometry_objects_geom_ref in zip(oMg_list, geometry_objects_name, geometry_objects_geom):
+                if (geometry_objects_name_ref, geometry_objects.name[:-2]) not in pairs_to_avoid and (geometry_objects.name[:-2],geometry_objects_name_ref ) not in pairs_to_avoid and not geometry_objects_name_ref==geometry_objects.name[:-2]:
+                    dist = pydiffcol.distance(
+                        hppfcl.Capsule(geometry_objects_geom_ref.radius,geometry_objects_geom_ref.halfLength),
+                        oMg_ref,
+                        hppfcl.Capsule(geometry_objects.geometry.radius,geometry_objects.geometry.halfLength),
+                        oMg,
+                        req, 
+                        res
+                    )
+                    if dist < 0:
+                        collision_pairs.append((geometry_objects.name, geometry_objects_name_ref))
+    
+    return collision_pairs
+    
+    
+    
 if __name__ == "__main__":
     import example_robot_data as robex
 
