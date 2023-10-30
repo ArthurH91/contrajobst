@@ -16,8 +16,8 @@ from wrapper_meshcat import MeshcatWrapper
 from utils import get_transform, linear_gradient, check_limits, check_auto_collisions, get_q_iter_from_Q
 
 ### BOOLS
-DISPLAY = False
-CHECK_LIMITS = True
+DISPLAY = True
+CHECK_LIMITS = False    
 
 ###* HYPERPARAMS
 nq = 7
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         display_traj(vis, Q_trs_list[0])
             
     if CHECK_LIMITS:
-        print(check_limits(rmodel, Q_trs_list[0]))
+        print(check_limits(rmodel,rdata, Q_trs_list[0]))
         
         collisions = []
         t_collision = []

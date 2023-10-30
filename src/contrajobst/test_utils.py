@@ -85,36 +85,37 @@ class TestUtils(unittest.TestCase):
         upper_pos_limit = robot.model.upperPositionLimit
         lower_pos_limit = robot.model.lowerPositionLimit
         vel_limit = robot.model.velocityLimit
+        data = robot.model.createData()
         
         # Checking whether the position limit fails correctly 
         q_upper_pos_limit_0 = robot.model.upperPositionLimit + np.array([1,0,0,0,0,0])
-        self.assertFalse(check_limits(robot.model, q_upper_pos_limit_0, CHECK_POS=True, CHECK_SPEED=False)[1], msg= "Problem of boolean while checking the limit of position")
-        self.assertEqual(check_limits(robot.model, q_upper_pos_limit_0, CHECK_POS=True, CHECK_SPEED=False)[3], q_upper_pos_limit_0[0], msg = "Problem of value when checking the limits of position")
-        self.assertEqual(check_limits(robot.model, q_upper_pos_limit_0, CHECK_POS=True, CHECK_SPEED=False)[5][0], 0.0, msg = "Problem of index when checking the limits of position")
+        self.assertFalse(check_limits(robot.model,data, q_upper_pos_limit_0, CHECK_POS=True, CHECK_SPEED=False, CHECK_ACCEL= False)[1], msg= "Problem of boolean while checking the limit of position")
+        self.assertEqual(check_limits(robot.model,data, q_upper_pos_limit_0, CHECK_POS=True, CHECK_SPEED=False, CHECK_ACCEL= False)[3], q_upper_pos_limit_0[0], msg = "Problem of value when checking the limits of position")
+        self.assertEqual(check_limits(robot.model,data, q_upper_pos_limit_0, CHECK_POS=True, CHECK_SPEED=False, CHECK_ACCEL= False)[5][0], 0.0, msg = "Problem of index when checking the limits of position")
 
         q_lower_pos_limit_1 = lower_pos_limit + np.array([0,-1,0,0,0,0])
 
-        self.assertFalse(check_limits(robot.model, q_lower_pos_limit_1, CHECK_POS=True, CHECK_SPEED=False)[1], msg= "Problem of boolean while checking the limit of position")
-        self.assertEqual(check_limits(robot.model, q_lower_pos_limit_1, CHECK_POS=True, CHECK_SPEED=False)[3], q_lower_pos_limit_1[1], msg = "Problem of value when checking the limits of position")
-        self.assertEqual(check_limits(robot.model, q_lower_pos_limit_1, CHECK_POS=True, CHECK_SPEED=False)[5][0], 1, msg = "Problem of index when checking the limits of position")
+        self.assertFalse(check_limits(robot.model,data, q_lower_pos_limit_1, CHECK_POS=True, CHECK_SPEED=False, CHECK_ACCEL= False)[1], msg= "Problem of boolean while checking the limit of position")
+        self.assertEqual(check_limits(robot.model,data, q_lower_pos_limit_1, CHECK_POS=True, CHECK_SPEED=False, CHECK_ACCEL= False)[3], q_lower_pos_limit_1[1], msg = "Problem of value when checking the limits of position")
+        self.assertEqual(check_limits(robot.model,data, q_lower_pos_limit_1, CHECK_POS=True, CHECK_SPEED=False, CHECK_ACCEL= False)[5][0], 1, msg = "Problem of index when checking the limits of position")
 
         # Checking whether the position limit succeed correctly 
         q_upper_pos_limit_2 = upper_pos_limit + np.array([0,0,-0.1,0,0,0])
 
-        self.assertTrue(check_limits(robot.model, q_upper_pos_limit_2, CHECK_POS=True, CHECK_SPEED=False)[1], msg= "Problem of boolean while checking the limit of position")
+        self.assertTrue(check_limits(robot.model, q_upper_pos_limit_2, CHECK_POS=True, CHECK_SPEED=False, CHECK_ACCEL= False)[1], msg= "Problem of boolean while checking the limit of position")
         
         # Checking the loop going through all the q
         Q = np.concatenate((q_upper_pos_limit_0, q_lower_pos_limit_1, q_upper_pos_limit_2))
         
-        self.assertFalse(check_limits(robot.model, Q, CHECK_POS=True, CHECK_SPEED=False)[1], msg= "Problem of boolean while checking the limit of position while testing with a traj")
-        self.assertEqual(check_limits(robot.model, Q, CHECK_POS=True, CHECK_SPEED=False)[3], [q_upper_pos_limit_0[0], q_lower_pos_limit_1[1]], msg = "Problem of value when checking the limits of position while testing with a traj")
-        self.assertEqual(check_limits(robot.model, Q, CHECK_POS=True, CHECK_SPEED=False)[5], [0,7], msg = "Problem of index when checking the limits of position while testing with a traj")
+        self.assertFalse(check_limits(robot.model,data, Q, CHECK_POS=True, CHECK_SPEED=False, CHECK_ACCEL= False)[1], msg= "Problem of boolean while checking the limit of position while testing with a traj")
+        self.assertEqual(check_limits(robot.model,data, Q, CHECK_POS=True, CHECK_SPEED=False, CHECK_ACCEL= False)[3], [q_upper_pos_limit_0[0], q_lower_pos_limit_1[1]], msg = "Problem of value when checking the limits of position while testing with a traj")
+        self.assertEqual(check_limits(robot.model,data, Q, CHECK_POS=True, CHECK_SPEED=False, CHECK_ACCEL= False)[5], [0,7], msg = "Problem of index when checking the limits of position while testing with a traj")
 
         # Testing the speed limits
         
         Q = np.concatenate((Q, np.zeros(len(q_upper_pos_limit_0))))
 
-        self.assertFalse(check_limits(robot.model, Q, CHECK_POS=False, CHECK_SPEED=True)[7], msg= "Problem of boolean while checking the limit of position while testing with a traj")
+        self.assertFalse(check_limits(robot.model,data, Q, CHECK_POS=False, CHECK_SPEED=True, CHECK_ACCEL=False)[7], msg= "Problem of boolean while checking the limit of position while testing with a traj")
 
 
     def test_auto_collision(self):
