@@ -30,7 +30,10 @@ import argparse
 
 import numpy as np
 import pinocchio as pin
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except:
+    pass
 import hppfcl
 
 from wrapper_robot import RobotWrapper
@@ -196,22 +199,22 @@ if __name__ == "__main__":
         # CAPSULE = args.capsule,
         CAPSULE=True
     )
+    if WITH_DISPLAY:
+        # Generating the meshcat visualizer
+        MeshcatVis = MeshcatWrapper()
+        vis = MeshcatVis.visualize(
+            TARGET,
+            OBSTACLE=BIG_BOX,
+            robot_model=rmodel,
+            robot_collision_model=cmodel,
+            robot_visual_model=vmodel,
+            obstacle_type="box",
+            OBSTACLE_DIM=BIG_BOX_DIM,
+        )
+        vis = vis[0]
 
-    # Generating the meshcat visualizer
-    MeshcatVis = MeshcatWrapper()
-    vis = MeshcatVis.visualize(
-        TARGET,
-        OBSTACLE=BIG_BOX,
-        robot_model=rmodel,
-        robot_collision_model=cmodel,
-        robot_visual_model=vmodel,
-        obstacle_type="box",
-        OBSTACLE_DIM=BIG_BOX_DIM,
-    )
-    vis = vis[0]
-
-    # Displaying the initial configuration of the robot
-    vis.display(INITIAL_CONFIG)
+        # Displaying the initial configuration of the robot
+        vis.display(INITIAL_CONFIG)
 
     # Initial trajectory
     Q0 = np.concatenate([INITIAL_CONFIG] * (T))

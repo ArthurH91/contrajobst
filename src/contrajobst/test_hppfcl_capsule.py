@@ -35,7 +35,8 @@ geometries = [
 ]
 
 T1 = pin.SE3.Identity()
-T2 = pin.SE3.Random()
+T2 = pin.SE3.Identity()
+
 
 geom_obj_1 = pin.GeometryObject("obj{}".format(1), 0, 0, hppfcl.Capsule(0.1, 0.8), T1)
 color = RED
@@ -48,7 +49,7 @@ geom_obj_2.meshColor = color
 geom_model.addGeometryObject(geom_obj_2)
 
 req = hppfcl.DistanceRequest()
-# req.enable_nearest_points = True
+req.enable_nearest_points = True
 res = hppfcl.DistanceResult()
 dist = hppfcl.distance(geometries[0], T1, geometries[1], T2, req, res)
 
@@ -60,22 +61,24 @@ geom_np = hppfcl.Sphere(r_w)
 cp1 = res.getNearestPoint1()
 cp2 = res.getNearestPoint2()
 
+print(cp1 - cp2)
+
 cp1_T = pin.SE3(np.eye(3), cp1)
 cp2_T = pin.SE3(np.eye(3), cp2)
 
 
 geom_obj_3 = pin.GeometryObject("obj{}".format(3), 0, 0, geom_np, cp1_T)
-color = GREEN
+color = GREEN_FULL
 geom_obj_3.meshColor = color
 geom_model.addGeometryObject(geom_obj_3)
 
 geom_obj_4 = pin.GeometryObject("obj{}".format(4), 0, 0, geom_np, cp2_T)
-color = BLUE
+color = BLUE_FULL
 geom_obj_4.meshColor = color
 geom_model.addGeometryObject(geom_obj_4)
 
 
-print(dist)
+# print(dist)
 
 viz = MeshcatVisualizer(model, geom_model, geom_model)
 

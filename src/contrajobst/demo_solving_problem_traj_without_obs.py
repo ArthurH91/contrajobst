@@ -24,10 +24,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from os.path import dirname, join, abspath
+import json 
 
 import numpy as np
 import pinocchio as pin
-import time
+
 import matplotlib.pyplot as plt
 import hppfcl
 
@@ -38,25 +39,24 @@ from solver_newton_mt import SolverNewtonMt
 from utils import (
     display_last_traj,
     get_difference_between_q_iter_sup,
-    get_q_iter_from_Q,
     plot_end_effector_positions,
-    generate_reachable_target
-
 )
 
 
+SAVE_RESULTS = True
+
 ###* HYPERPARMS
 
-MAX_ITER = 1000
+MAX_ITER = 200
 
-T = 5
-WEIGHT_Q0 = 0.001
+T = 200
+WEIGHT_Q0 = 0.1
 # WEIGHT_DQ = (
 #     0.00001  #! CONVERGENCE IN 5 ITERATIONS BUT SKIPS STEPS (WITH T = 5, T = 10, T = 30)
 # )
 # WEIGHT_DQ = 0.0001  #! CONVERGENCE IN 2xx ITERATIONS BUT SKIPS STEPS (WITH T = 30) NO CONVERGENCE WITH T = 5 BUT SKIPS STEPS AS WELL
 WEIGHT_DQ = (
-    0.001  #! CONVERGENCE IN 6XX ITERATIONS WITH T = 5, 3XX WITH T = 10, 3XX WITH T = 30
+    0.01  #! CONVERGENCE IN 6XX ITERATIONS WITH T = 5, 3XX WITH T = 10, 3XX WITH T = 30
 )
 
 # WEIGHT_Q0 = 0.01
@@ -67,6 +67,7 @@ WEIGHT_TERM_POS = 1000
 # Generate a reachable target
 TARGET = pin.SE3.Identity()
 TARGET.translation = np.array([0, -0.4,1.5])
+
 
 ###* LOADING THE ROBOT
 
@@ -98,7 +99,7 @@ if __name__ == "__main__":
 
     # Initial config of the robot
     INITIAL_CONFIG = pin.neutral(rmodel)
-    INITIAL_CONFIG = np.array([0.,0.5,0.,-0.7,0.,1.5,0.])
+    # INITIAL_CONFIG = np.array([0.,0.5,0.,-0.7,0.,1.5,0.])
 
 
     # Shape of the target
@@ -109,8 +110,7 @@ if __name__ == "__main__":
         rmodel,
         cmodel,
         INITIAL_CONFIG,
-        TARGET,
-        TARGET_SHAPE,
+        TARGET.translation,
         T,
         WEIGHT_Q0,
         WEIGHT_DQ,
@@ -156,11 +156,15 @@ if __name__ == "__main__":
     Q_trs = trust_region_solver._xval_k
 
     q_dot = []
-
+    Q_save = np.zeros((T, rmodel.nq + rmodel.nv)) 
+    Q_save[0] = np.concatenate((INITIAL_CONFIG, np.zeros(7)))
+    dt = 1e-3
     for k in range(0, T - 1):
+        v_k = get_difference_between_q_iter_sup(Q_trs, k, rmodel.nq)
         q_dot.append(
-            np.linalg.norm(get_difference_between_q_iter_sup(Q_trs, k, rmodel.nq))
+            np.linalg.norm(v_k)
         )
+        Q_save[k+1] = np.concatenate((Q_trs[k*rmodel.nq : (k+1) * rmodel.nq], v_k))
 
     plt.plot(q_dot)
     plt.xlabel("Iterations")
@@ -177,3 +181,13 @@ if __name__ == "__main__":
     rmodel, cmodel, rdata, Q_trs, T, rmodel.nq, TARGET, TARGET_SHAPE
 )
     plt.show()
+    
+    print(Q_save)
+    
+
+    if SAVE_RESULTS:
+        results = {
+            "Q" : Q_save.tolist()
+        }
+        with open("results_test.json", "w") as outfile:
+            json.dump(results, outfile)

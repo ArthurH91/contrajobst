@@ -43,7 +43,6 @@ class NLP_without_obs:
         gmodel: pin.GeometryModel,
         q0: np.array,
         target: np.array,
-        target_shape: hppfcl.ShapeBase,
         T: int,
         weight_q0: float,
         weight_dq: float,
@@ -80,7 +79,6 @@ class NLP_without_obs:
         self._q0 = q0
         self._T = T
         self._target = target
-        self._target_shape = target_shape
         self._weight_q0 = weight_q0
         self._weight_dq = weight_dq
         self._weight_term_pos = weight_term_pos
@@ -90,7 +88,7 @@ class NLP_without_obs:
         # Storing the IDs of the frame of the end effector
 
         self._EndeffID = self._rmodel.getFrameId("panda2_joint7")
-        self._EndeffID_geom = self._gmodel.getGeometryId("panda2_rightfinger_3")
+        self._EndeffID_geom = self._gmodel.getGeometryId("panda2_link7_sc_5")
         assert self._EndeffID_geom < len(self._gmodel.geometryObjects)
         assert self._EndeffID < len(self._rmodel.frames)
 
@@ -150,26 +148,30 @@ class NLP_without_obs:
 
         # Obtaining the cartesian position of the end effector.
         self.endeff_Transform = self._rdata.oMf[self._EndeffID]
-        self.endeff_Shape = self._gmodel.geometryObjects[self._EndeffID_geom].geometry
+        p_endeff = self.endeff_Transform.translation
+        dist = p_endeff - self._target
         
-        p_endeff_loc = self._gmodel.geometryObjects[self._EndeffID_geom].placement
-        frame_parent_frame = self._gmodel.geometryObjects[self._EndeffID_geom].parentFrame
+        # self.endeff_Shape = self._gmodel.geometryObjects[self._EndeffID_geom].geometry
+        
+        # p_endeff_loc = self._gmodel.geometryObjects[self._EndeffID_geom].placement
+        # frame_parent_frame = self._gmodel.geometryObjects[self._EndeffID_geom].parentFrame
         
         
-        p_endeff_world = (get_transform(self._rdata.oMf[frame_parent_frame]) @ get_transform(p_endeff_loc))
-        
+        # p_endeff_world = (get_transform(self._rdata.oMf[frame_parent_frame]) @ get_transform(p_endeff_loc))
         #
-        dist_endeff_target = pydiffcol.distance(
-            self.endeff_Shape,
-            pin.SE3(p_endeff_world),
-            self._target_shape,
-            self._target,
-            self._req,
-            self._res,
-        )
+        # dist_endeff_target = pydiffcol.distance(
+        #     self.endeff_Shape,
+        #     pin.SE3(p_endeff_world),
+        #     self._target_shape,
+        #     self._target,
+        #     self._req,
+        #     self._res,
+        # )
 
-        self._terminal_residual = (self._weight_term_pos) * self._res.w
-               
+        
+        # self._terminal_residual = (self._weight_term_pos) * self._res.w
+        # self._terminal_residual = (self._weight_term_pos) * p_endeff_world[:3,3]
+        self._terminal_residual = self._weight_term_pos * dist
         ###* TOTAL RESIDUAL
         self._residual = np.concatenate(
             (
@@ -227,26 +229,26 @@ class NLP_without_obs:
             self._rmodel, self._rdata, self._EndeffID, pin.LOCAL
         )
 
-        dist = pydiffcol.distance(
-            self.endeff_Shape,
-            self.endeff_Transform,
-            self._target_shape,
-            self._target,
-            self._req,
-            self._res,
-        )
-        _ = pydiffcol.distance_derivatives(
-            self.endeff_Shape,
-            self.endeff_Transform,
-            self._target_shape,
-            self._target,
-            self._req,
-            self._res,
-            self._req_diff,
-            self._res_diff
-        )
+        # dist = pydiffcol.distance(
+        #     self.endeff_Shape,
+        #     self.endeff_Transform,
+        #     self._target_shape,
+        #     self._target,
+        #     self._req,
+        #     self._res,
+        # )
+        # _ = pydiffcol.distance_derivatives(
+        #     self.endeff_Shape,
+        #     self.endeff_Transform,
+        #     self._target_shape,
+        #     self._target,
+        #     self._req,
+        #     self._res,
+        #     self._req_diff,
+        #     self._res_diff
+        # )
 
-        J = jacobian.T @ self._res_diff.dn_loc_dM1.T
+        # J = jacobian.T @ self._res_diff.dn_loc_dM1.T
 
         J = pin.getFrameJacobian(
             self._rmodel, self._rdata, self._EndeffID, pin.LOCAL_WORLD_ALIGNED

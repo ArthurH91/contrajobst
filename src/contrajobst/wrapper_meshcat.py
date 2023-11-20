@@ -105,7 +105,7 @@ class MeshcatWrapper:
         self.viewer_pin.initViewer(
             viewer=meshcat.Visualizer(zmq_url="tcp://127.0.0.1:6000")
         )
-        self.viewer_pin.loadViewerModel()
+        self.viewer_pin.loadViewerModel('pino')
         self.viewer_pin.displayCollisions(True)
 
         return self.viewer_pin, self.viewer

@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import time
 import numpy as np
 import hppfcl
-from scipy import optimize
+
+# from scipy import optimize
 
 from wrapper_meshcat import MeshcatWrapper
 from wrapper_robot import RobotWrapper

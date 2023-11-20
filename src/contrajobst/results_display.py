@@ -6,10 +6,12 @@ import json, codecs
 import numpy as np
 import pinocchio as pin
 import hppfcl
-import matplotlib.pyplot as plt
-from matplotlib.colors import LightSource
-from matplotlib import cm
-
+try:
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LightSource
+    from matplotlib import cm
+except:
+    pass
 from wrapper_robot import RobotWrapper
 from wrapper_meshcat import MeshcatWrapper
 

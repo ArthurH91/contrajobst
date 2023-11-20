@@ -84,7 +84,7 @@ PROFILER = args.profiler
 # ### HYPERPARMS
 T = args.steps
 WEIGHT_Q0 = 0.001
-WEIGHT_DQ = 1e-4
+WEIGHT_DQ = 1e-3
 WEIGHT_OBS = 10
 WEIGHT_TERM_POS = 50
 MAX_ITER = args.maxit
@@ -222,7 +222,7 @@ if __name__ == "__main__":
             "terminal_cost": NLP._terminal_cost,
             "grad": NLP.gradval.tolist(),
         }
-        with open("results_it_80.json", "w") as outfile:
+        with open("results_t_200.json", "w") as outfile:
             json.dump(results, outfile)
 
     if WITH_PLOTTING:
